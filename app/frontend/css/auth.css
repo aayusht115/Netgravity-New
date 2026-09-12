@@ -1,0 +1,622 @@
+/* ═══════════════════════════════════════════════════════════
+   Netgravity — Authentication Pages Design System
+   Kearney Purple (#9218EA) · Minimal · Modern Consulting SaaS
+   Separate dedicated pages for:
+   1. Sign In
+   2. Create New Account
+   3. Reset Password
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  --auth-brand-purple: #9218EA;
+  --auth-brand-purple-dark: #7c14c7;
+  --auth-brand-purple-light: #f5edfc;
+  --auth-brand-purple-glow: rgba(146, 24, 234, 0.4);
+  
+  --auth-bg: #f8f6fc;
+  --auth-text-1: #111827;
+  --auth-text-2: #4b5563;
+  --auth-text-muted: #6b7280;
+  
+  --auth-card-bg: #ffffff;
+  --auth-card-border: #e8e4f0;
+  --auth-card-shadow: 0 20px 45px -10px rgba(146, 24, 234, 0.12), 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+/* ─── Top-level Auth Page Shell ───────────────────────────── */
+.auth-page-shell {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--auth-bg);
+  background-image: 
+    radial-gradient(circle at 85% 15%, rgba(235, 215, 255, 0.65) 0%, rgba(248, 246, 252, 0) 50%),
+    radial-gradient(circle at 15% 85%, rgba(245, 230, 255, 0.5) 0%, rgba(248, 246, 252, 0) 45%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.8) 0%, rgba(248, 246, 252, 0.3) 100%);
+  display: none;
+  flex-direction: column;
+  z-index: 10000;
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--auth-text-1);
+}
+
+.auth-page-shell.active {
+  display: flex !important;
+}
+
+/* ─── Top Navigation Bar ──────────────────────────────────── */
+.auth-topbar {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 32px 64px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.auth-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.2s ease;
+}
+
+.auth-brand-lockup:hover {
+  opacity: 0.85;
+}
+
+.auth-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-brand-name {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--auth-text-1);
+  line-height: 1.1;
+}
+
+.auth-brand-sub {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--auth-text-muted);
+  letter-spacing: -0.01em;
+  margin-top: 2px;
+}
+
+.auth-topbar-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--auth-text-muted);
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--auth-card-border);
+  transition: all 0.2s ease;
+}
+
+.auth-topbar-link:hover {
+  background: #ffffff;
+  color: var(--auth-brand-purple);
+  border-color: var(--auth-brand-purple-light);
+  box-shadow: 0 2px 8px rgba(146, 24, 234, 0.1);
+}
+
+.auth-topbar-link .auth-link-bold {
+  color: var(--auth-brand-purple);
+  font-weight: 600;
+}
+
+/* ─── Main Content Container ──────────────────────────────── */
+.auth-main-content {
+  flex: 1;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px 64px 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+
+/* Background decorative SVGs */
+.auth-bg-network-left,
+.auth-bg-network-right {
+  position: absolute;
+  width: 380px;
+  height: 380px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.6;
+}
+
+.auth-bg-network-left {
+  left: 5%;
+  top: 15%;
+}
+
+.auth-bg-network-right {
+  right: 5%;
+  bottom: 10%;
+}
+
+/* ─── Centered Card Layout ────────────────────────────────── */
+.auth-centered-wrap {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 3;
+}
+
+.auth-centered-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.auth-hero-title {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--auth-text-1);
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+
+.auth-hero-subtitle {
+  font-size: 14.5px;
+  color: var(--auth-text-muted);
+  line-height: 1.5;
+}
+
+.auth-card {
+  width: 100%;
+  background: var(--auth-card-bg);
+  border: 1px solid var(--auth-card-border);
+  border-radius: 18px;
+  padding: 36px 36px 32px;
+  box-shadow: var(--auth-card-shadow);
+}
+
+/* ─── Form Controls ───────────────────────────────────────── */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-field-group {
+  margin-bottom: 20px;
+}
+
+.auth-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--auth-text-2);
+  margin-bottom: 7px;
+  letter-spacing: -0.01em;
+}
+
+.auth-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.auth-input-icon {
+  position: absolute;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+.auth-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 40px 0 42px;
+  background: #fdfdfd;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--auth-text-1);
+  font-family: inherit;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.auth-input:focus {
+  border-color: var(--auth-brand-purple);
+  background: #ffffff;
+  box-shadow: 0 0 0 3.5px rgba(146, 24, 234, 0.12);
+}
+
+.auth-input-wrap:focus-within .auth-input-icon {
+  color: var(--auth-brand-purple);
+}
+
+.auth-password-toggle {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color 0.2s ease;
+}
+
+.auth-password-toggle:hover {
+  color: var(--auth-brand-purple);
+}
+
+/* ─── Password Requirements Box ───────────────────────────── */
+.auth-requirements-box {
+  background: #fdfaff;
+  border: 1px solid #f0e6fc;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+
+.auth-requirements-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--auth-brand-purple);
+  margin-bottom: 10px;
+}
+
+.auth-requirements-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.auth-req-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.35;
+  transition: color 0.15s ease;
+}
+
+/* `.is-met` is the class js/auth.js sets; `.valid` is kept as a synonym so
+   any older markup that still uses it renders the same. Unmet is always
+   the resting state — an item only goes green once the field earns it. */
+.auth-req-item.is-met,
+.auth-req-item.valid {
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.auth-req-mark {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1.5px solid #c8c2d6;
+  background: #ffffff;
+  position: relative;
+  box-sizing: border-box;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.auth-req-item.is-met .auth-req-mark,
+.auth-req-item.valid .auth-req-mark {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+.auth-req-item.is-met .auth-req-mark::after,
+.auth-req-item.valid .auth-req-mark::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 3px;
+  height: 6px;
+  border: solid #ffffff;
+  border-width: 0 1.6px 1.6px 0;
+  transform: rotate(45deg);
+}
+
+.auth-req-state {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Failure message. Sized and coloured here rather than assembled in
+   JavaScript, so the panels and the account screens agree on it. */
+.auth-error-box {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #f7cccc;
+  color: #b91c1c;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* Checkbox */
+.auth-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 22px;
+  font-size: 13px;
+  color: var(--auth-text-2);
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.auth-checkbox-row input {
+  margin-top: 3px;
+  accent-color: var(--auth-brand-purple);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.auth-checkbox-row a {
+  color: var(--auth-brand-purple);
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+/* Primary Auth Action Button */
+.btn-auth-primary {
+  width: 100%;
+  height: 48px;
+  background: linear-gradient(135deg, #9218EA 0%, #7c14c7 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(146, 24, 234, 0.38);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-auth-primary:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 12px 28px rgba(146, 24, 234, 0.48);
+  background: linear-gradient(135deg, #9f2af5 0%, #8512db 100%);
+}
+
+.btn-auth-primary:active {
+  transform: translateY(0);
+}
+
+/* Secondary Button */
+.btn-auth-secondary {
+  width: 100%;
+  height: 44px;
+  background: #ffffff;
+  color: var(--auth-text-1);
+  border: 1.5px solid var(--auth-card-border);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 12px;
+}
+
+.btn-auth-secondary:hover {
+  background: var(--auth-brand-purple-light);
+  border-color: var(--auth-brand-purple);
+  color: var(--auth-brand-purple);
+}
+
+/* Divider */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+  color: #9ca3af;
+  font-size: 12.5px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.auth-divider span {
+  padding: 0 12px;
+}
+
+/* Card Footer */
+.auth-card-footer {
+  text-align: center;
+  margin-top: 22px;
+  font-size: 13.5px;
+  color: var(--auth-text-2);
+}
+
+.auth-card-footer a {
+  color: var(--auth-brand-purple);
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 4px;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.auth-card-footer a:hover {
+  color: var(--auth-brand-purple-dark);
+  text-decoration: underline;
+}
+
+/* ─── Confirmation State ──────────────────────────────────── */
+.auth-confirmation-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px 8px;
+}
+
+.auth-conf-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f5edfc 0%, #ecdcf8 100%);
+  color: var(--auth-brand-purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  border: 1.5px solid #e0c8f5;
+  box-shadow: 0 8px 20px rgba(146, 24, 234, 0.18);
+}
+
+.auth-conf-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--auth-text-1);
+  margin-bottom: 10px;
+}
+
+.auth-conf-desc {
+  font-size: 14px;
+  color: var(--auth-text-2);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.auth-conf-email {
+  font-weight: 600;
+  color: var(--auth-brand-purple);
+}
+
+/* Footer */
+.auth-footer {
+  width: 100%;
+  text-align: center;
+  padding: 24px;
+  font-size: 12.5px;
+  color: var(--auth-text-muted);
+  flex-shrink: 0;
+}
+
+/* ─── Responsive Queries ──────────────────────────────────── */
+@media (max-width: 640px) {
+  .auth-topbar {
+    padding: 20px 20px 12px;
+  }
+  .auth-main-content {
+    padding: 16px 20px 32px;
+  }
+  .auth-card {
+    padding: 28px 20px;
+  }
+  .auth-hero-title {
+    font-size: 24px;
+  }
+  .auth-requirements-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Single sign-on ─────────────────────────────────────────
+   Rendered only when a provider is configured — see renderSsoOption()
+   in js/auth.js. The element ships hidden, so a deployment with no
+   provider shows nothing rather than a button that cannot work. */
+.auth-sso {
+  margin-top: 14px;
+}
+
+.auth-sso-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 12px;
+  color: #9ca3af;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.auth-sso-divider::before,
+.auth-sso-divider::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.auth-sso-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
+/* Amber rather than red: a failed federated sign-in is usually a
+   configuration or invitation matter, not an error the user made. */
+.auth-sso-error {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #92400e;
+}

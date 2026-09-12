@@ -1,0 +1,2200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NetGravity — AI Decision Intelligence for Logistics Networks</title>
+  <meta name="description" content="NetGravity: AI decision agent for logistics network planning.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <link rel="stylesheet" href="vendor/leaflet-1.9.4.css">
+  <script src="vendor/leaflet-1.9.4.js"></script>
+  <script src="vendor/chart-4.4.0.umd.min.js"></script>
+  <script src="vendor/three-r128.min.js"></script>
+  <script src="vendor/three-orbitcontrols-0.128.0.js"></script>
+  <!-- Design system, in the exact cascade order the approved standalone
+       (app/standalone/netgravity_standalone.html) concatenates them into its
+       single <style> block. Order is load-bearing: later sheets deliberately
+       override earlier ones, so these must not be reordered or alphabetised. -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/landing.css">
+  <link rel="stylesheet" href="css/auth.css">
+  <link rel="stylesheet" href="css/home-overview.css">
+  <link rel="stylesheet" href="css/insights.css">
+  <link rel="stylesheet" href="css/insight-detail.css">
+  <link rel="stylesheet" href="css/agent-loading.css">
+  <link rel="stylesheet" href="css/chatbot.css">
+  <link rel="stylesheet" href="css/workspace-chrome.css">
+  <link rel="stylesheet" href="css/projects.css">
+  <link rel="stylesheet" href="css/ingestion.css">
+  <!-- Atlas presentation restores our pre-v3 visual language; v3 still
+       owns the screens, behaviour and data. Twin geometry stays last. -->
+  <link rel="stylesheet" href="css/atlas-theme.css">
+  <link rel="stylesheet" href="css/atlas-workspace.css">
+  <script src="js/landing-bootstrap.js"></script>
+</head>
+<body style="margin:0;padding:0;">
+  <div id="landing-page">
+    <!-- Left Hero Column: Pure HTML UI -->
+    <div class="landing-hero-left">
+      <!-- Brand Lockup -->
+      <div class="landing-brand" data-action="switchAuthPanel" data-arg="signin">
+        <svg class="landing-logo-svg" viewBox="0 0 48 48" fill="none">
+          <line x1="10" y1="10" x2="10" y2="38" stroke="#9218EA" stroke-width="4.5" stroke-linecap="round"/>
+          <line x1="38" y1="10" x2="38" y2="38" stroke="#9218EA" stroke-width="4.5" stroke-linecap="round"/>
+          <line x1="12" y1="12" x2="36" y2="36" stroke="#9218EA" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="10" cy="10" r="5" fill="#fff" stroke="#9218EA" stroke-width="3"/>
+          <circle cx="38" cy="10" r="5" fill="#fff" stroke="#9218EA" stroke-width="3"/>
+          <circle cx="10" cy="38" r="5" fill="#fff" stroke="#9218EA" stroke-width="3"/>
+          <circle cx="38" cy="38" r="5" fill="#fff" stroke="#9218EA" stroke-width="3"/>
+        </svg>
+        <div class="landing-brand-text">
+          <div class="landing-brand-title">Netgravity</div>
+          <div class="landing-brand-sub">by Kearney</div>
+        </div>
+      </div>
+
+      <!-- Main Headline -->
+      <h1 class="landing-headline">AI Decision Intelligence<br>for <span class="highlight-purple">Logistics Networks</span></h1>
+
+      <!-- In-Place Sign In Panel -->
+      <div class="landing-auth-panel active" id="panel-signin">
+        <div class="auth-panel-header">
+          <div class="auth-panel-title">Sign in</div>
+          <div class="auth-panel-subtitle">Enter your credentials to access your account</div>
+        </div>
+        <form id="form-panel-signin">
+          <div class="auth-field-group">
+            <label class="auth-label" for="signin-email">Email address</label>
+            <div class="auth-input-wrap">
+              <span class="auth-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>
+              <input type="email" id="signin-email" class="auth-input" placeholder="you@kearney.com" required autocomplete="email" />
+            </div>
+          </div>
+          <div class="auth-field-group">
+            <label class="auth-label" for="signin-password">Password</label>
+            <div class="auth-input-wrap">
+              <span class="auth-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+              <input type="password" id="signin-password" class="auth-input" placeholder="••••••••••••" required autocomplete="current-password" />
+              <button type="button" class="auth-password-toggle" title="Toggle password visibility">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="signin-actions-row">
+            <a class="auth-forgot-link" data-action="switchAuthPanel" data-arg="reset">Forgot password?</a>
+          </div>
+          <!-- Failure slot. showAuthError() used to create this element and
+               append it to the end of the form; on a fixed-height, overflow
+               hidden page that put the reason below the fold. Every panel now
+               carries the slot where the reason belongs, and the reserved panel
+               height accounts for it, so revealing it moves nothing. -->
+          <div class="auth-error-box" id="signin-error" role="alert" hidden></div>
+          <button type="submit" class="btn-landing-primary">
+            <span>Sign in</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+          <!-- Single sign-on, shown only when a provider is configured.
+               Rendered by renderSsoOption() in js/auth.js from
+               /api/auth/oidc/providers — a button that cannot work is worse
+               than no button. -->
+          <div class="auth-sso" id="auth-sso-option" hidden></div>
+          <div class="auth-panel-footer">
+            Don't have an account?<a data-action="switchAuthPanel" data-arg="signup">Create new account</a>
+          </div>
+        </form>
+      </div>
+
+      <!-- In-Place Sign Up Panel -->
+      <div class="landing-auth-panel" id="panel-signup">
+        <div class="auth-panel-header">
+          <div class="auth-panel-title">Create new account</div>
+          <div class="auth-panel-subtitle">Fill in your details to get started</div>
+        </div>
+        <form id="form-panel-signup">
+          <div class="auth-field-group">
+            <label class="auth-label" for="signup-name">Full name</label>
+            <div class="auth-input-wrap">
+              <span class="auth-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+              <input type="text" id="signup-name" class="auth-input" placeholder="Your full name" required autocomplete="name" />
+            </div>
+          </div>
+          <div class="auth-field-group">
+            <label class="auth-label" for="signup-email">Work email</label>
+            <div class="auth-input-wrap">
+              <span class="auth-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>
+              <input type="email" id="signup-email" class="auth-input" placeholder="you@kearney.com" required autocomplete="email" />
+            </div>
+          </div>
+          <div class="auth-field-group">
+            <label class="auth-label" for="signup-password">Password</label>
+            <div class="auth-input-wrap">
+              <span class="auth-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+              <!-- No `value`. This shipped pre-filled with a literal password,
+                   so every account created by clicking straight through signup
+                   got the same one, and it sat in plain text in a file served
+                   to every visitor. A convenience during prototyping; a shared
+                   credential in production. -->
+              <input type="password" id="signup-password" class="auth-input" placeholder="Create a password" required autocomplete="new-password" />
+              <button type="button" class="auth-password-toggle" title="Toggle password visibility">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="auth-field-group">
+            <label class="auth-label" for="signup-password-confirm">Confirm password</label>
+            <div class="auth-input-wrap">
+              <span class="auth-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+              <input type="password" id="signup-password-confirm" class="auth-input" placeholder="Re-enter your password" required autocomplete="new-password" />
+              <button type="button" class="auth-password-toggle" title="Toggle password visibility">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+          <!-- Live requirement checklist. Every item ships unmet and is driven
+               from the field by bindPasswordRequirements() in js/auth.js, so the
+               list states the rule before anything is typed and then reports
+               against what was actually typed. It previously carried two items
+               painted green unconditionally, one of them naming a floor of 8
+               that the server does not have: it refuses anything under 12. -->
+          <div class="auth-requirements-box" id="signup-requirements">
+            <div class="auth-requirements-header">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+              <span>Password must contain:</span>
+            </div>
+            <ul class="auth-requirements-list" id="signup-requirements-list">
+              <li class="auth-req-item" data-req="length"><span class="auth-req-mark" aria-hidden="true"></span><span class="auth-req-text">At least 12 characters</span><span class="auth-req-state">not met</span></li>
+              <li class="auth-req-item" data-req="upper"><span class="auth-req-mark" aria-hidden="true"></span><span class="auth-req-text">1 uppercase letter</span><span class="auth-req-state">not met</span></li>
+              <li class="auth-req-item" data-req="lower"><span class="auth-req-mark" aria-hidden="true"></span><span class="auth-req-text">1 lowercase letter</span><span class="auth-req-state">not met</span></li>
+              <li class="auth-req-item" data-req="digit"><span class="auth-req-mark" aria-hidden="true"></span><span class="auth-req-text">1 number</span><span class="auth-req-state">not met</span></li>
+              <li class="auth-req-item" data-req="symbol"><span class="auth-req-mark" aria-hidden="true"></span><span class="auth-req-text">1 special character</span><span class="auth-req-state">not met</span></li>
+            </ul>
+          </div>
+          <!-- Failure slot, directly under the checklist so "the requirements
+               above" is literally true. See the note on the sign-in panel for
+               why it is in the markup rather than appended on demand. -->
+          <div class="auth-error-box" id="signup-error" role="alert" hidden></div>
+          <button type="submit" class="btn-landing-primary">
+            <span>Create account</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+          <div class="auth-panel-footer">
+            Already have an account?<a data-action="switchAuthPanel" data-arg="signin">Sign in</a>
+          </div>
+        </form>
+      </div>
+
+      <!-- In-Place Reset Password Panel -->
+      <div class="landing-auth-panel" id="panel-reset">
+        <div class="auth-panel-header">
+          <div class="auth-panel-title">Reset password</div>
+          <div class="auth-panel-subtitle">Enter your email and we'll send you a recovery link</div>
+        </div>
+        <form id="form-panel-reset">
+          <div class="auth-field-group">
+            <label class="auth-label" for="panel-reset-email">Work email</label>
+            <div class="auth-input-wrap">
+              <span class="auth-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>
+              <input type="email" id="panel-reset-email" class="auth-input" placeholder="you@kearney.com" required autocomplete="email" />
+            </div>
+          </div>
+          <div class="auth-error-box" id="reset-error" role="alert" hidden></div>
+          <button type="submit" class="btn-landing-primary">
+            <span>Send reset link</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+          <button type="button" class="btn-landing-secondary" data-action="switchAuthPanel" data-arg="signin">
+            Back to sign in
+          </button>
+        </form>
+        <div class="auth-confirmation-box" id="panel-reset-confirmation" style="display: none;">
+          <div class="auth-conf-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </div>
+          <div class="auth-conf-title">Check your email</div>
+          <!-- The server will not confirm whether an account exists for the
+               address, so neither does this. The copy is here rather than
+               written in from JavaScript on every path, and JavaScript writes
+               into this element rather than over the box that holds it — doing
+               the latter took the heading and the button back to sign-in with
+               it, which is how the confirmed screen lost its way out. -->
+          <div class="auth-conf-desc" id="panel-reset-conf-desc">If an account exists for that address, a reset link is on its way. It is valid for 30 minutes and can be used once.</div>
+          <button type="button" class="btn-landing-primary" data-action="switchAuthPanel" data-arg="signin">
+            <span>Back to sign in</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Hero Column.
+         Empty on purpose: `renderNetworkVisualization()` draws the world into
+         it from the Natural Earth outlines in world-basemap.js. This used to
+         hold a 156 KB base64 raster of India AND a static copy of the overlay,
+         both of which the same function replaced on load — so every visit
+         decoded that image in order to throw it away. -->
+    <div class="landing-hero-right" id="landing-map-stage"></div>
+  </div>
+
+  <!-- Project workspace screens. Rendered by projects.js; see the flow note
+       at the top of that module. Placeholders stay empty in the bundle. -->
+  <div id="select-project-page" class="proj-page hidden"></div>
+  <div id="create-project-page" class="proj-page hidden"></div>
+
+  <!-- Data ingestion flow: Upload Data → Excel/PDF ingestion, one screen
+       per uploaded file. Rendered by ingestion.js; see the flow note at
+       the top of that module. -->
+  <div id="upload-data-page" class="proj-page hidden"></div>
+  <div id="ingestion-page" class="proj-page hidden"></div>
+
+
+<div class="app-shell">
+    <div class="app-body">
+
+      <!-- ═══════════════════════════════════════ SIDEBAR -->
+      <nav class="sidebar" id="sidebar">
+        <!-- Collapse toggle: default is icon-only (Dump/Home Overview-updated.png);
+             expanding restores the labelled nav below. -->
+        <div class="sidebar-toggle-row">
+          <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" title="Expand sidebar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+        </div>
+
+        <!-- Netgravity Logo Lockup — clicking it returns to Home (not the landing page) since this only appears once the user is signed in. -->
+        <div class="sidebar-brand-netgravity" id="sidebar-brand-lockup" title="Back to Home">
+          <div class="sidebar-logo-mark">
+            <svg viewBox="0 0 38 38" width="34" height="34" fill="none">
+              <!-- Left bar -->
+              <line x1="8" y1="9" x2="8" y2="29" stroke="#9218EA" stroke-width="4.5" stroke-linecap="round"/>
+              <!-- Right bar -->
+              <line x1="30" y1="9" x2="30" y2="29" stroke="#9218EA" stroke-width="4.5" stroke-linecap="round"/>
+              <!-- Diagonal link -->
+              <line x1="10" y1="10" x2="28" y2="28" stroke="#9218EA" stroke-width="4" stroke-linecap="round"/>
+              <!-- Nodes -->
+              <circle cx="8" cy="9" r="4.2" fill="#ffffff" stroke="#9218EA" stroke-width="3"/>
+              <circle cx="30" cy="9" r="4.2" fill="#ffffff" stroke="#9218EA" stroke-width="3"/>
+              <circle cx="8" cy="29" r="4.2" fill="#ffffff" stroke="#9218EA" stroke-width="3"/>
+              <circle cx="30" cy="29" r="4.2" fill="#ffffff" stroke="#9218EA" stroke-width="3"/>
+            </svg>
+          </div>
+          <div class="sidebar-brand-text">
+            <span class="sidebar-brand-name">Netgravity</span>
+            <span class="sidebar-brand-sub">by Kearney</span>
+          </div>
+        </div>
+
+        <!-- Overview, then Baseline (Digital Twin / KPIs / Insights), then
+             Forecast and Scenarios. Insights has its own entry again: Home
+             shows the three findings that lead, and a reader who wants the
+             rest needs somewhere to go that is not a card on another page. -->
+        <!-- THREE THINGS, NOT FIVE.
+             ══════════════════════════════════════════════════════════════
+             The menu used to be Overview, a Baseline group of three, then
+             Forecast and Scenarios loose at the bottom — five top-level
+             entries whose grouping said nothing about what the product does.
+             Insights sat under Baseline because it is computed FROM the
+             baseline, which is true and is not the question a reader is
+             asking when they look at a menu.
+
+             The question they are asking is "where do I go next", and there
+             are only two answers: look at what the network IS, or look at
+             what could be done about it. So:
+
+               Overview       what happened, in one screen
+               Baseline       the network as uploaded and solved — what it
+                              looks like (Digital Twin) and what it measures
+                              (KPI Dashboard)
+               Opportunities  what could change — what the engine found
+                              (Insights), what is coming (Forecasting), and
+                              what to do about either (Scenario Builder)
+
+             Both groups are the same control: a head that opens its first
+             child, a caret that collapses it, and `data-group-tab` naming the
+             destination. The head must NOT carry `data-tab` or it would
+             compete with its own child for the active mark. -->
+        <div class="sidebar-nav">
+          <div class="nav-item active" data-tab="home" id="nav-item-home" title="Executive view">
+            <svg class="nav-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M3 10L10 3l7 7M5 8.5V16a1 1 0 001 1h3v-4h2v4h3a1 1 0 001-1V8.5" />
+            </svg>
+            <span>Executive view</span>
+          </div>
+
+          <!-- BASELINE — the network as uploaded and solved, before any
+               scenario. What it looks like, and what it measures. -->
+          <div class="nav-group" id="nav-group-baseline">
+            <div class="nav-item nav-group-head" id="nav-item-baseline"
+                 role="button" tabindex="0" aria-expanded="true"
+                 data-group-tab="twin"
+                 aria-controls="nav-group-baseline-items"
+                 title="Baseline — opens the Digital Twin">
+              <svg class="nav-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M3 16.5h14" />
+                <rect x="4.6" y="9" width="3.2" height="7.5" rx="0.8" />
+                <rect x="9.4" y="5.5" width="3.2" height="11" rx="0.8" />
+                <rect x="14.2" y="11.5" width="3.2" height="5" rx="0.8" />
+              </svg>
+              <span>Baseline</span>
+              <button type="button" class="nav-caret-btn" id="nav-caret-baseline"
+                      aria-label="Show or hide the Baseline views"
+                      aria-controls="nav-group-baseline-items">
+                <svg class="nav-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                  <path d="M6 8l4 4 4-4" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="nav-group-items" id="nav-group-baseline-items">
+              <div class="nav-group-inner">
+                <div class="nav-item nav-sub" data-tab="twin" id="nav-item-twin" title="Digital Twin">
+                  <svg class="nav-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="7" cy="7" r="2" />
+                    <circle cx="14" cy="7" r="2" />
+                    <circle cx="7" cy="14" r="2" />
+                    <circle cx="14" cy="14" r="2" />
+                    <path d="M9 7h3M7 9v3M14 9v3M9 14h3" />
+                  </svg>
+                  <span>Digital Twin</span>
+                </div>
+
+                <div class="nav-item nav-sub" data-tab="facility-dashboard" id="nav-item-kpis" title="KPI Dashboard">
+                  <svg class="nav-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M3 3v14h14M7 13v-4M11 13V7M15 13v-7" />
+                  </svg>
+                  <span>KPI Dashboard</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- OPPORTUNITIES — what could change, and what it would cost.
+               Insights is what the engine found in the baseline, Forecasting
+               is what is coming at it, and the Scenario Builder is where
+               either becomes a priced decision. A reader who has read the
+               baseline and wants to act comes here; grouping the three is
+               what makes that one destination rather than three. -->
+          <div class="nav-group" id="nav-group-opportunities">
+            <div class="nav-item nav-group-head" id="nav-item-opportunities"
+                 role="button" tabindex="0" aria-expanded="true"
+                 data-group-tab="insights"
+                 aria-controls="nav-group-opportunities-items"
+                 title="Opportunities — opens Insights">
+              <svg class="nav-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 2.4l2.1 4.6 5 .5-3.8 3.4 1.1 4.9L10 13.3l-4.4 2.5 1.1-4.9L2.9 7.5l5-.5z" />
+              </svg>
+              <span>Opportunities</span>
+              <button type="button" class="nav-caret-btn" id="nav-caret-opportunities"
+                      aria-label="Show or hide the Opportunities views"
+                      aria-controls="nav-group-opportunities-items">
+                <svg class="nav-caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                  <path d="M6 8l4 4 4-4" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="nav-group-items" id="nav-group-opportunities-items">
+              <div class="nav-group-inner">
+                <div class="nav-item nav-sub" data-tab="insights" id="nav-item-insights" title="Insights">
+                  <svg class="nav-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10 2.6a5 5 0 0 0-2.9 9.07V13.5h5.8v-1.83A5 5 0 0 0 10 2.6z" />
+                    <path d="M8.3 15.9h3.4M8.8 17.8h2.4" />
+                  </svg>
+                  <span>Insights</span>
+                </div>
+
+                <div class="nav-item nav-sub" data-tab="forecast" id="nav-item-forecast" title="Forecasting">
+                  <svg class="nav-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <polyline points="3,15 7,9 11,12 17,4" />
+                    <polyline points="14,4 17,4 17,7" />
+                  </svg>
+                  <span>Forecasting</span>
+                </div>
+
+                <div class="nav-item nav-sub" data-tab="scenarios" id="nav-item-scenarios" title="Scenario Builder">
+                  <svg class="nav-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 13l2 2 4-4" />
+                  </svg>
+                  <span>Scenario Builder</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-meta" style="margin-top:auto">
+          <!-- Written by renderSidebarMeta() from the project actually open.
+               These were the literals "India Network" and "v7.0", shown in the
+               sidebar of every project regardless of its data — which is how a
+               US network came to be labelled an India one on every screen. -->
+          <div class="meta-block">
+            <div class="meta-label">Network</div>
+            <div class="meta-value" id="sidebar-network-name">&mdash;</div>
+          </div>
+          <div class="meta-block">
+            <div class="meta-label">Region</div>
+            <div class="meta-value" id="sidebar-network-region">&mdash;</div>
+          </div>
+        </div>
+
+
+
+        <!-- Settings Button on Bottom Left Corner -->
+        <div class="nav-item" id="nav-item-settings" title="Settings" style="margin: 6px 8px 12px; cursor:pointer;">
+          <svg class="nav-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="10" cy="10" r="3"/>
+            <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"/>
+          </svg>
+          <span>Settings</span>
+        </div>
+      </nav>
+
+      <!-- ═══════════════════════════════════ MAIN CONTENT -->
+      <main class="main-content">
+
+        <!-- Top Row: Upload Data (Home Overview Only) + Notification, Help, Profile (Across All Pages) -->
+        <header class="app-global-topbar">
+          <div class="topbar-left-area">
+            <button type="button" class="project-select-btn" id="project-select-btn" title="Select or create a project" style="border-radius:20px;padding:5px 14px;border:1px solid #e5e7eb;background:#fff;display:flex;align-items:center;gap:6px;font-size:12.5px;color:#374151;font-weight:500;font-family:inherit;cursor:pointer;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+              <span>Current Project: <strong id="topbar-current-project-name">India Logistics Network</strong></span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+
+            <!-- Facility & Period: the application's scope pair, in the same
+                 place on every page (see updateTopBarLayout). Hidden only on
+                 Scenario Planning, where a scenario is solved over the whole
+                 network and neither control would change anything. -->
+            <div class="topbar-controls" id="home-top-controls">
+              <div class="topbar-control-group">
+                <span class="control-label">Facility</span>
+                <select class="control-select topbar-facility-select" id="home-top-facility">
+                  <option value="ALL">All Facilities</option>
+                  <option value="DC_DELHI">Delhi NCR DC</option>
+                  <option value="DC_MUMBAI">Mumbai DC</option>
+                  <option value="DC_BENGALURU">Bengaluru DC</option>
+                  <option value="DC_KOLKATA">Kolkata DC</option>
+                  <option value="DC_GUWAHATI">Guwahati DC</option>
+                </select>
+              </div>
+              <div class="topbar-control-group">
+                <span class="control-label">Period</span>
+                <select class="control-select topbar-period-select" id="home-top-period">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="topbar-right-area">
+            <!-- Upload Data: available from every page. It is a global
+                 action on a global bar — hiding it on four of five screens
+                 made the top bar change shape as you moved between tabs, and
+                 sent anyone wanting to load a file back to Home first. -->
+
+            <button class="btn-topbar-upload" id="btn-topbar-upload" title="Upload Network Data">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+              </svg>
+              <span>Upload Data</span>
+            </button>
+
+            <!-- Global Clickable Icons: Notification, Help, Profile (Available across ALL pages) -->
+            <button class="topbar-icon-btn" id="btn-topbar-notifications" title="System Notifications & Alerts">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              </svg>
+              <span class="notif-badge-dot"></span>
+            </button>
+
+            <button class="topbar-icon-btn" id="btn-topbar-help" title="Help & Documentation">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+            </button>
+
+            <div class="topbar-profile-wrap">
+              <div class="topbar-profile-btn" id="btn-topbar-profile" title="User profile">
+                <div class="user-avatar-ak"></div>
+              </div>
+              <div class="profile-dropdown-menu" id="profile-dropdown-menu">
+                <div class="profile-dropdown-item" id="profile-menu-profile">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>
+                  <span>Profile</span>
+                </div>
+                <div class="profile-dropdown-sep"></div>
+                <div class="profile-dropdown-item danger" id="profile-menu-signout">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  <span>Sign out</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+                <!-- Second Row: the page's own title.
+                     `#topbar-controls` below is the sub-topbar's old copy of
+                     Facility/Period. It is never shown — the pair lives in
+                     the top bar on every screen now — but `#sel-facility` /
+                     `#sel-period` remain the application's source of truth
+                     for the current scope: every screen reads them, and
+                     `initHomeSelectors()` keeps them in step with the visible
+                     pair. Removing them would mean rewiring the scope of the
+                     whole application to delete one hidden row. -->
+        <div class="app-sub-topbar" id="app-sub-topbar">
+          <div class="sub-topbar-title-wrap" id="sub-topbar-title-wrap">
+            <span class="sub-topbar-main-title" id="sub-topbar-main-title">Hello, <strong id="logged-in-user-name"></strong></span>
+            <span class="sub-topbar-sub-title" id="sub-topbar-sub-title">· Network Decision Command Center</span>
+          </div>
+
+          <!-- WHAT THIS SCREEN IS DRAWN WITH, beside what the screen IS.
+               The 2D/3D pair had a row of its own under the title, right
+               aligned against nothing — a full-width strip carrying one
+               control and, on a screen whose whole point is the map, a row of
+               height taken from it. It is a property of the view, so it sits
+               on the view's own title line. Shown only where it applies;
+               `updateTopBarLayout` owns that. -->
+          <div class="sub-topbar-actions" id="sub-topbar-actions">
+
+          </div>
+
+          <div class="topbar-controls" id="topbar-controls">
+            <div class="topbar-control-group">
+              <span class="control-label">Facility</span>
+              <select class="control-select topbar-facility-select" id="sel-facility">
+                <option value="DC_DELHI" selected>Delhi NCR DC</option>
+                <option value="DC_MUMBAI">Mumbai DC</option>
+                <option value="DC_BENGALURU">Bengaluru DC</option>
+                <option value="DC_KOLKATA">Kolkata DC</option>
+                <option value="DC_GUWAHATI">Guwahati DC</option>
+                <option value="ALL">All DCs (Network Overview)</option>
+              </select>
+            </div>
+            <div class="topbar-control-group">
+              <span class="control-label">Period</span>
+              <select class="control-select topbar-period-select" id="sel-period">
+                <!-- Populated by JS: 1 Aug – 31 Aug 2026 -->
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─────────────────── TAB: HOME (Overview) ───────────────
+             Laid out against Dump/Home Overview-updated1.png:
+
+               row 0  "Overview" and its strapline, on one line
+               row 1  the network's headline figures, at the TOP, with the
+                      rest of them one click away at the foot of the strip
+               row 2  the three findings that need a decision, side by side,
+                      the most serious one first and colour-coded
+               row 3  what the upload did not carry, and what would sharpen
+                      it, each with the request it needs
+               row 4  when this was last analysed, and the re-run
+
+             WHY THE FIGURES MOVED TO THE TOP. They were the last row, on the
+             reasoning that findings outrank figures. In use a reader opening
+             this page has one question first — "is the network alright" —
+             and four figures answer it in a glance, which is what the top of
+             a page is for. The findings are still the tallest thing on the
+             screen and still the only content that is nowhere else.
+
+             THE DIGITAL TWIN IS GONE FROM THIS PAGE. It took the whole right
+             half of the first screen to draw a network the reader can open
+             in full from the sidebar, and it left the findings a 500px column
+             with an internal scroller — the recommendation a reader is meant
+             to act on could sit below the bottom of its own card. Baseline >
+             Digital Twin is one click away and is the same scene; nothing was
+             removed from the product, only from this page.
+
+             Scope — project, facility, period — is the top bar's, and it is
+             the same bar on every screen (see updateTopBarLayout). -->
+        <section class="tab-panel active" id="tab-home">
+
+          <!-- row 0 -->
+          <div class="ov-head">
+            <div class="ov-head-text">
+              <h1 class="ov-title">Executive view</h1>
+              <p class="ov-subtitle">Your network health and key actions at a glance.</p>
+            </div>
+          </div>
+
+          <!-- The one state that outranks every figure and every finding on
+               this page: a network the solver could not produce a plan for.
+               There is nothing below to read in that case, and the insight
+               tiles would render their "no findings yet" empty state over a
+               genuine engine error.
+
+               ONLY that state. `renderOverviewAlert(id, {errorsOnly:true})`
+               leaves this element empty for a network that solved — the
+               unserved-demand shortfall is a finding, and the first tile is
+               where a finding belongs. -->
+          <div class="ov-notice" id="ov-notice" hidden><!-- renderOverviewAlert() --></div>
+
+          <!-- row 1: the network's headline figures.
+               Filled by renderHomeKpiStrip() from the authoritative KPI
+               layer. "View all KPIs" at the foot of the strip opens the
+               dashboard behind them — it sits at the BOTTOM edge because
+               that is where a reader's eye leaves the strip, and because a
+               link in the top-right of a card competes with the figures
+               for the first fixation. -->
+          <section class="home2-kpi-strip" id="ov-kpi-strip"
+                   aria-labelledby="ov-kpi-strip-label">
+            <h2 class="ov-visually-hidden" id="ov-kpi-strip-label">Network today</h2>
+            <div class="home2-kpi-strip-row" id="ov-kpi-strip-row">
+              <!-- renderHomeKpiStrip() -->
+            </div>
+            <div class="home2-kpi-strip-foot">
+              <button class="home-section-link home2-kpi-strip-viewall"
+                      id="btn-view-all-kpis"
+                      data-action="navigateToTab" data-arg="facility-dashboard">
+                <span>View all KPIs</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 10h10M11 6l4 4-4 4"/></svg>
+              </button>
+            </div>
+          </section>
+
+          <!-- row 2: what needs a decision.
+               Three tiles, written by renderHomeInsightTiles(). Each one is
+               the same four things in the same order — the conclusion, why
+               it matters in figures, what to do about it, and the way into
+               the full finding — so a reader learns the shape once and
+               reads the other two without re-learning it (Nielsen #4). -->
+          <div class="ov-insights-head">
+            <h2 class="ov-insights-title">Key insights &amp; recommendations</h2>
+            <button class="home-section-link" id="btn-view-more-insights"
+                    data-action="navigateToTab" data-arg="insights">
+              <span>View more insights</span>
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 10h10M11 6l4 4-4 4"/></svg>
+            </button>
+          </div>
+          <div class="ov-tiles" id="ov-tiles">
+            <!-- renderHomeInsightTiles() -->
+          </div>
+
+          <!-- row 3: what the analysis did not have.
+               Written by renderHomeDataStrip() from the completeness gate's
+               own findings (HOME_ACTION_ITEMS). Required first, then
+               optional: one is holding an analysis up and the other would
+               sharpen it, and they must never read as the same request. -->
+          <div class="ov-data-strip" id="ov-data-strip">
+            <!-- renderHomeDataStrip() -->
+          </div>
+
+          <!-- row 4: when this was last analysed, and how to re-run it.
+               Nielsen #1 — every figure above is as old as this line says. -->
+          <div class="ov-foot">
+            <span class="ov-refresh-text">Last analysed:
+              <span id="home2-refresh-time">not yet analysed</span>
+              <button type="button" class="ov-refresh-btn" id="home2-refresh-btn"
+                      title="Re-run the analysis" aria-label="Re-run the analysis">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              </button>
+            </span>
+          </div>
+
+        </section>
+
+        <!-- ─────────────────── TAB: INSIGHTS ──────────────────────
+             Every finding the Reasoning Agent reached about this network,
+             and every request the completeness gate raised — the full list
+             behind Home's three tiles.
+
+             It leads the Opportunities group in the sidebar. It is
+             computed FROM the baseline, which is why it used to sit under
+             it — but a finding is not a description of the network, it is
+             something that could be done about it, and it belongs beside
+             the forecast and the scenario builder that act on it.
+             Home shows the three that lead; this shows all of
+             them, filterable, and each row opens the same deep dive
+             (insight-detail.js) that Home's tiles do — one destination for
+             one finding, never two accounts of it. -->
+        <section class="tab-panel" id="tab-insights">
+          <!-- What the engine recommends for the network AS A WHOLE, drawn
+               from every finding rather than from any one of them. Each row
+               below carries its own step; this is the one that ranks them,
+               and it is stated once, here, so a reader is never left to
+               work out which of five recommendations is the overall one. -->
+          <div class="insp-rec" id="insp-rec" hidden><!-- renderInsightsPage() --></div>
+
+          <div class="insp-filters" id="insp-filters" role="tablist"
+               aria-label="Filter findings">
+            <!-- renderInsightsPage() -->
+          </div>
+          <div class="insp-list" id="insp-list">
+            <!-- renderInsightsPage() -->
+          </div>
+        </section>
+
+        <!-- The full account of ONE finding, or of one data request. Opened
+             from a tile on Home, from a row on the Insights page, or from the
+             Forecast page's attention card — all three land here, so a
+             finding has one page and never two accounts of itself. -->
+        <section class="tab-panel" id="tab-insight-detail">
+          <!-- Populated by insight-detail.js: showInsightDetail(kind, id) -->
+        </section>
+
+
+        <!-- ─────────────────── TAB: FACILITY DASHBOARD / ANALYTICS ─────────────────── -->
+        <section class="tab-panel" id="tab-facility-dashboard">
+
+          <!--
+            ONE SCREEN, ONE FLOW.
+
+            Not two. This panel used to carry a network band above a per-site
+            band, each with its own heading and its own export button, and the
+            rule between them read as a division between two kinds of building
+            — which is exactly what a DC and a warehouse are not. There is one
+            facility population here and one report of it, read top to bottom
+            in the order a planner has to act:
+
+              1. how many sites, and how many are in trouble;
+              2. WHICH ones, named, with the reason;
+              3. the peak against the average — the one picture that shows what
+                 an average hides;
+              4. the same network cut three more ways — the mix of states, the
+                 headroom in UNITS rather than per cent, and the stock held;
+              5. every site, in a table, for the reader who wants the numbers;
+              6. then down into the one site the top bar has selected, with its
+                 own throughput, cost, findings and corridors — unchanged.
+
+            ONE VOCABULARY. A DC and a warehouse are the same site, so this
+            screen names them the way the rest of the product already does:
+            "Distribution Centre" for the role, "facility" for the collective.
+
+            ONE EXPORT. The button below writes the whole screen to one file —
+            every site in the network table AND the selected site's telemetry,
+            KPIs, findings and corridors. Two buttons made the reader work out
+            which half each one covered before they could trust either file.
+          -->
+          <div class="facility-toolbar" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px">
+            <!-- What these figures are OF. A peak reading means nothing
+                 without the horizon it is the peak of. -->
+            <div class="text-xs" id="wh-basis" style="color:var(--text-2);min-width:0">&mdash;</div>
+            <!-- ONE EXPORT. The PDF is the view as it looks, with the
+                 filters that produced it named on it — which is the thing a
+                 reader circulates. A second format behind a menu was one more
+                 click in front of the only one anybody asked for. -->
+            <button class="btn btn-secondary btn-export-kpi" id="btn-export-xlsx" type="button"
+                    title="Export the current view to Excel — one sheet per population"
+                    style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;font-size:12.5px;font-weight:600;border-radius:8px;background:#ffffff;border:1px solid #e5e7eb;color:#374151;cursor:pointer;flex-shrink:0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+              <span>Export Excel</span>
+            </button>
+            <!-- HOW THE NUMBERS WERE ARRIVED AT, beside the numbers.
+                 The workbook carries the figures; this carries the rules
+                 behind them, worked through with this network's own values.
+                 A reader about to repeat one of these figures to somebody
+                 who will challenge it needs the second file, and needs to
+                 find it where they found the first. -->
+            <button class="btn btn-secondary btn-export-kpi" id="btn-export-method" type="button"
+                    title="Download how these figures are calculated — formulas, variables and worked examples"
+                    style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;font-size:12.5px;font-weight:600;border-radius:8px;background:#ffffff;border:1px solid #e5e7eb;color:#374151;cursor:pointer;flex-shrink:0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <path d="M14 2v6h6M8 13h8M8 17h5"/>
+              </svg>
+              <span>How it is calculated</span>
+            </button>
+          </div>
+
+          <!-- WHAT THIS PAGE IS, for the copy that leaves the building.
+               Screen-hidden and print-only: a PDF that does not name the
+               project, the horizon and the filters behind its numbers is a
+               page of figures nobody can check later. -->
+          <div class="kpi-print-head" id="kpi-print-head" aria-hidden="true">
+            <div class="kpi-print-brand">
+              <svg width="26" height="26" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <path d="M10 38 24 10l14 28" stroke="#9218EA" stroke-width="3" stroke-linejoin="round"/>
+                <circle cx="24" cy="10" r="5" fill="#fff" stroke="#9218EA" stroke-width="3"/>
+                <circle cx="10" cy="38" r="5" fill="#fff" stroke="#9218EA" stroke-width="3"/>
+                <circle cx="38" cy="38" r="5" fill="#fff" stroke="#9218EA" stroke-width="3"/>
+              </svg>
+              <div>
+                <div class="kpi-print-title">Netgravity <span>by Kearney</span></div>
+                <div class="kpi-print-sub">Network KPIs &amp; Analytics</div>
+              </div>
+            </div>
+            <dl class="kpi-print-meta" id="kpi-print-meta"></dl>
+          </div>
+
+          <!-- TIER 1 — WHICH LENS, and therefore WHICH SCORECARD.
+
+               The whole network, storage sites, production sites, or the
+               corridors between them. Network is first and is where the screen
+               lands: a reader arriving from the Overview arrives with a
+               network-level question, and the four figures they just read are
+               the four this tab shows.
+
+               Switching lens always returns to that lens's whole population;
+               it never carries a selected site across, because "Atlanta" on
+               the Plants tab would be a different site or no site at all. -->
+          <div class="kpi-domain-bar" id="kpi-domain-bar" role="tablist">
+            <button class="kpi-domain-tab active" data-domain="network" role="tab">Network</button>
+            <button class="kpi-domain-tab" data-domain="dc" role="tab">Distribution Centres</button>
+            <button class="kpi-domain-tab" data-domain="plant" role="tab">Plants</button>
+            <button class="kpi-domain-tab" data-domain="lane" role="tab">Freight &amp; Lanes</button>
+          </div>
+
+          <!-- TIER 0 — THE SCORECARD, WHICH DESCRIBES WHATEVER IS SELECTED.
+
+               It is NOT fixed. A row of network totals held constant above a
+               screen filtered to three southern sites answers a question the
+               reader has stopped asking — and the first card read
+               "Distribution facilities 8 of 9" while the Plants tab was open,
+               which is the contradiction this screen was rebuilt to remove.
+
+               So there is one row and it follows the scope:
+
+                 * Network  the four figures the Overview states, rendered by
+                            Overview's OWN renderer against the authoritative
+                            KPI layer, so the two screens cannot disagree;
+                 * a lens   that population counted and measured, narrowing
+                            again with every filter applied to it.
+          -->
+          <div id="kpi-network-strip" class="home2-kpi-strip">
+            <div class="home2-kpi-strip-row" id="kpi-network-strip-row"></div>
+          </div>
+          <div class="grid-4" id="wh-summary-grid"></div>
+          <!-- The corridor lens's own three. It had NONE, and the facility
+               grid above was left on screen carrying whatever the previous
+               lens had rendered — plant counts above a corridor table, with
+               no caption to say so. -->
+          <div class="grid-3" id="kpi-lane-summary"></div>
+          <div class="text-xs kpi-scorecard-note" id="kpi-scorecard-note"></div>
+
+          <!-- TIER 2 — HOW FAR IN. Region and Status narrow the population;
+               Facility drills into one site. Every control writes to one view
+               state, and one render reads it, so no card can be left showing a
+               wider population than the one beside it. -->
+          <!-- ONE CONTROL, ONE THING.
+
+               The Status slot used to be relabelled "Mode" on the corridor
+               lens — one select that meant two different things depending on
+               a tab, which is a control a reader has to check before they can
+               trust. Each dimension now has its own, and each lens shows only
+               the ones that describe it: a corridor has no health band and a
+               facility has no origin. -->
+          <!-- TIER 2 — HOW FAR IN, in the vocabulary of the lens above.
+
+               ONE CONTROL, ONE THING, AND NO DOOR IN FRONT OF THEM.
+
+               These lived behind a "Filters" button that opened a panel and
+               committed on Apply. Two clicks and a decision stood between a
+               reader and the only question this bar answers — which sites,
+               which period — and with the panel shut the screen's scope was a
+               count on a chip. They are on the bar now and they apply as they
+               are set: this bar carries at most three controls, so the
+               staging a six-control panel needed buys nothing here.
+
+               REGION AND STATUS ARE GONE. Region duplicated a narrowing the
+               facility list already makes visible, and Status filtered a
+               screen whose entire top half exists to report status — hiding
+               the tight sites is the one thing a reader of a capacity screen
+               never wants. What is left describes the lens: a bucket of
+               facilities and a period, or the two ends of a corridor and its
+               mode. -->
+          <div class="kpi-filter-bar" id="kpi-filter-bar">
+            <div class="kpi-filter-row" id="kpi-filter-row">
+              <label class="kpi-filter" id="kpi-filter-entity-wrap">
+                <span id="kpi-filter-entity-label">Facility</span>
+                <select class="control-select" id="kpi-filter-entity"></select></label>
+              <label class="kpi-filter" id="kpi-filter-period-wrap"><span>Period</span>
+                <select class="control-select" id="kpi-filter-period"></select></label>
+              <label class="kpi-filter" id="kpi-filter-origin-wrap"><span>Origin</span>
+                <select class="control-select" id="kpi-filter-origin"></select></label>
+              <label class="kpi-filter" id="kpi-filter-dest-wrap"><span>Destination</span>
+                <select class="control-select" id="kpi-filter-dest"></select></label>
+              <label class="kpi-filter" id="kpi-filter-mode-wrap"><span>Mode</span>
+                <select class="control-select" id="kpi-filter-mode"></select></label>
+              <button type="button" class="kpi-filter-reset" id="kpi-filter-reset"
+                      hidden>Reset</button>
+            </div>
+            <div class="kpi-showing" id="kpi-showing">&mdash;</div>
+          </div>
+
+          <!-- Where the reader is, and the way back out. Hidden until a site
+               is actually selected: a breadcrumb on the roll-up would name a
+               level nobody has entered. -->
+          <div class="kpi-breadcrumb" id="kpi-breadcrumb" style="display:none">
+            <button class="kpi-crumb-back" id="kpi-crumb-back" type="button">&larr; Back to all</button>
+            <span class="kpi-crumb-trail" id="kpi-crumb-trail"></span>
+          </div>
+
+          <!-- ONE EXPLANATION, ANCHORED OVER THE CHART IT IS ABOUT.
+
+               It is moved into the selected chart card and positioned over
+               it, rather than inserted into the page flow. That is what keeps
+               the promise the grid needs: an OVERLAY takes no space, so the
+               chart card's height and its neighbour's position are identical
+               whether or not anything has been explained.
+
+               One element, moved — never a copy per chart. Two briefings open
+               at once leaves the reader working out which one belongs to the
+               thing they just clicked.
+
+               It carries a headline and two or three sentences and nothing
+               else: no evidence list, no "why it matters", no next step, no
+               calculation note. The numbers are IN the sentences, checked
+               against the deterministic results before they get here. -->
+          <div class="kpi-ai-overlay" id="kpi-explain-card" hidden>
+            <div class="kpi-ai-head">
+              <span class="kpi-ai-label">&#10022; Netgravity AI</span>
+              <button class="kpi-ai-close" id="kpi-explain-close" type="button"
+                      aria-label="Close explanation">&times;</button>
+            </div>
+            <div class="kpi-ai-body" id="kpi-explain-body"></div>
+          </div>
+
+          <!-- ── ROLL-UP: the whole population of the current lens ── -->
+          <div id="kpi-rollup">
+
+          <!-- Status only: what the screen is doing, or why it cannot.
+               The per-site exception cards that used to live here are gone —
+               see warehouse.js. The Facility Health table below carries every
+               site, sorted by what needs attention first. -->
+          <div id="wh-status" class="mb-lg"></div>
+
+          <!-- CAPACITY FIRST, then cost, then the detail.
+               The screen answers "can this network carry its demand" before
+               "what is it spending" — a reader who opens the KPI page opens it
+               because something is tight, and the two charts that say whether
+               anything is tight now sit together at the top instead of one
+               here and one in the row below. -->
+          <div class="kpi-section-head">Capacity</div>
+          <div class="grid-2 mb-lg">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Peak vs Average Utilisation</div>
+                  <div class="card-subtitle" id="wh-util-subtitle">Every open site, against the 90% threshold</div>
+                </div>
+              </div>
+              <div class="chart-wrap" style="height:300px">
+                <canvas id="chart-wh-utilisation"></canvas>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Capacity and What It Carries</div>
+                  <!-- Headroom in UNITS, which is the reading the per-cent
+                       chart beside it ranks the wrong way round: 95% of 200
+                       units is 10 spare, 80% of 40,000 is 8,000. -->
+                  <div class="card-subtitle">How much of each site's rated capacity is used, in units</div>
+                </div>
+              </div>
+              <div class="chart-wrap" style="height:300px">
+                <canvas id="chart-wh-headroom"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="kpi-section-head">Cost and operations</div>
+          <div class="grid-3 mb-lg">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Where the Facility Spend Sits</div>
+                  <!-- It said "and holding", but holding is decided for the
+                       network rather than per site, so the slices almost never
+                       contain any — a subtitle promising a component the chart
+                       does not show. -->
+                  <div class="card-subtitle">Fixed, opening and handling per site — transport and inventory are network-level</div>
+                </div>
+              </div>
+              <!-- Canvas and legend side by side. The legend is DOM so a long
+                   name ellipsises to the room it has and the AMOUNT beside it
+                   never clips — a drawn legend cut the digits instead. -->
+              <div class="ng-chart-with-legend" style="height:260px">
+                <div class="chart-wrap"><canvas id="chart-wh-spend"></canvas></div>
+                <ul class="ng-legend" id="legend-wh-spend"></ul>
+              </div>
+              <!-- WHERE THE REST OF THE MONEY IS — as a caption on the chart
+                   it is about, rather than a loose sentence higher up the page.
+                   The network cost has four parts and the solve knows three of
+                   them per site; inventory it decides for the network as a
+                   whole, so these slices come up short by that amount and a
+                   reader who adds them concludes the page is broken. Naming
+                   the gap costs one line; spreading it across sites on an
+                   allocation nobody solved for would put an invented number
+                   beside solved ones. -->
+              <div class="text-xs kpi-cost-note" id="kpi-cost-attribution" hidden></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <!-- Named for the lens: on the Plants tab this is a mix of
+                       plants, and calling it the network's would be a third
+                       thing on screen describing a population it is not
+                       about. -->
+                  <div class="card-title" id="wh-mix-title">Network Status Mix</div>
+                  <div class="card-subtitle">How many sites sit in each state</div>
+                </div>
+              </div>
+              <div class="chart-wrap" style="height:260px">
+                <canvas id="chart-wh-mix"></canvas>
+              </div>
+            </div>
+
+            <!-- APPLICABILITY, not just availability.
+                 Inventory is a DC metric in most networks: a plant that
+                 reports no stock level is not a plant with an empty
+                 warehouse, it is a site the model does not hold stock at. So
+                 on a lens where NO site reports one, the card comes off the
+                 screen entirely rather than standing there with a note in it
+                 — a chart offered for a population it cannot describe is a
+                 chart the reader has to work out is irrelevant.
+                 `renderStock` decides; see warehouse.js. -->
+            <div class="card" id="wh-stock-card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Stock Held</div>
+                  <div class="card-subtitle" id="wh-stock-subtitle">Average against peak, per site</div>
+                </div>
+              </div>
+              <!-- A model that carries no inventory decisions has no stock to
+                   draw. The note REPLACES the canvas and states the reason —
+                   an empty chart frame reads as "zero stock", which is the one
+                   thing an absent reading does not mean. -->
+              <div class="chart-wrap" style="height:260px" id="wh-stock-wrap">
+                <canvas id="chart-wh-stock"></canvas>
+              </div>
+              <div id="wh-stock-absent" style="display:none"></div>
+            </div>
+          </div>
+
+          <div class="kpi-section-head">Detail</div>
+          <!-- 5. Every site -->
+          <div class="card mb-lg">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Facility Health</div>
+                <div class="card-subtitle">Sorted by what needs attention first</div>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="ng-table" id="table-wh-health">
+                <thead>
+                  <tr>
+                    <th>Facility</th>
+                    <th>Status</th>
+                    <th class="num">Capacity / period</th>
+                    <th class="num">Avg throughput</th>
+                    <th class="num">Peak throughput</th>
+                    <th class="num">Avg util</th>
+                    <th class="num">Peak util</th>
+                    <th class="num">Tight periods</th>
+                    <th class="num">Avg stock</th>
+                    <th class="num">Peak stock</th>
+                    <th class="num">Facility cost</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          </div><!-- /#kpi-rollup -->
+
+          <!-- ── FREIGHT & LANES: the corridors, network-wide ──
+               A different population from the two facility lenses, so it gets
+               its own container rather than a filtered facility table. Built
+               by `renderLaneView()` in kpi-view.js from the same LANES the
+               map and the corridor tables already read. -->
+          <div id="kpi-lanes" style="display:none">
+            <div class="grid-2 mb-lg">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">Highest-Cost Corridors</div>
+                    <!-- The BASIS is stated by the tag beside this, not here:
+                         it is spend where the solve produced a flow to spend
+                         on, and the rate where it did not. A fixed subtitle
+                         naming one of them would be wrong half the time. -->
+                    <div class="card-subtitle">What each corridor costs the plan</div>
+                  </div>
+                </div>
+                <div id="kpi-lane-top"></div>
+              </div>
+
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">Transport Mode Split</div>
+                    <div class="card-subtitle">Corridors by the mode each one is carried on</div>
+                  </div>
+                </div>
+                <div id="kpi-lane-modes"></div>
+              </div>
+            </div>
+
+            <div class="card mb-lg">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Corridor Telemetry</div>
+                  <div class="card-subtitle" id="kpi-lane-table-sub">Every corridor in the current view</div>
+                </div>
+                <!-- FIND, not filter. The selects above scope the whole lens;
+                     this only narrows the rows of this table, which is what a
+                     reader wants when they know the corridor they are looking
+                     for and do not want to change what the cards above them
+                     are reporting. -->
+                <label class="kpi-table-search">
+                  <span class="sr-only">Search corridors</span>
+                  <input type="search" id="kpi-lane-search" autocomplete="off"
+                         placeholder="Search origin, destination or mode">
+                </label>
+              </div>
+              <div class="table-wrap table-wrap-sticky">
+                <table class="ng-table" id="table-kpi-lanes">
+                  <thead>
+                    <tr>
+                      <th>Corridor</th>
+                      <th class="num">Flow</th>
+                      <th class="num">Distance</th>
+                      <th class="num">Cost / unit</th>
+                      <th class="num">Transit time</th>
+                      <th>Mode</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div><!-- /#kpi-lanes -->
+
+          <!-- ── ONE SITE: everything below is scoped to the selection ── -->
+          <div id="kpi-entity" style="display:none">
+
+          <!-- Which facility the cards below are about. -->
+          <!--
+            The screen states WHICH facility it is showing.
+
+            It never did. Every card, chart and corridor row on this panel is
+            scoped to one site, and the only thing naming that site was the
+            dropdown in the top bar — so when the selection changed and the
+            panel did not re-render (it was wired to Home's renderer only),
+            there was nothing on screen to contradict the dropdown. A reader saw
+            Bangalore selected above Delhi's numbers with no visible
+            disagreement. `renderFacilityDashboard()` had always written to
+            `#dash-facility-name`; the element did not exist in this markup, so
+            the write went nowhere.
+          -->
+          <div class="facility-toolbar" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;margin-top:2px;">
+            <div style="display:flex;align-items:baseline;gap:10px;min-width:0">
+              <span id="dash-facility-dot" style="width:9px;height:9px;border-radius:50%;background:var(--text-3);flex-shrink:0"></span>
+              <span id="dash-facility-name" style="font-size:16px;font-weight:700;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">&mdash;</span>
+              <span id="dash-facility-type" class="text-xs" style="color:var(--text-2);white-space:nowrap"></span>
+            </div>
+          </div>
+
+          <!-- 6 Executive Data Cards -->
+          <div class="grid-3 mb-lg" id="dash-metrics-grid">
+            <!-- Populated by JS -->
+          </div>
+
+          <!-- Charts Section -->
+          <div class="grid-2 mb-lg">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Throughput vs Capacity</div>
+                  <!-- No projection. The solve produces none, and the card
+                       used to promise "3-Month Projection" over a curve it
+                       had compounded itself. -->
+                  <div class="card-subtitle">Solved throughput each period, against rated capacity</div>
+                </div>
+              </div>
+              <div class="chart-wrap" style="height:280px">
+                <canvas id="chart-dash-throughput"></canvas>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Facility Cost Breakdown</div>
+                  <!-- The four components the engine reports for a site, which
+                       sum to the Facility Cost card above. Transport is NOT
+                       among them: the model does not attribute it to a site,
+                       and the old subtitle named it first. -->
+                  <!-- WRITTEN BY THE CHART, from the slices it actually
+                       drew. It read "Fixed, opening, handling and holding"
+                       above a ring that drops zero-value components — and
+                       inventory is decided for the network rather than per
+                       site, so on most sites the fourth slice is not there.
+                       See `renderFacilityCostBreakdownChart`. -->
+                  <div class="card-subtitle" id="dash-costs-subtitle">&mdash;</div>
+                </div>
+              </div>
+              <div class="chart-wrap" style="height:280px">
+                <canvas id="chart-dash-costs"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Corridor Flow Distribution Chart & Summary -->
+          <div class="card mb-lg">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Connected Corridor Flows &amp; Cost per Unit</div>
+                <!-- ROLE-DEPENDENT, so it is written by JS.
+                     It said "Inbound supply from plants & Outbound dispatches
+                     to demand markets" for every site, including plants — and
+                     a plant has no inbound supply from plants. A caption that
+                     describes a flow the selected facility cannot have is a
+                     caption a reader has to ignore, which is how they learn
+                     to ignore the rest. See `describeCorridorCard`. -->
+                <div class="card-subtitle" id="dash-lanes-subtitle">&mdash;</div>
+              </div>
+            </div>
+            <div class="grid-2-1" style="gap:var(--space-lg);align-items:center">
+              <div class="chart-wrap" style="height:220px">
+                <canvas id="chart-dash-lanes"></canvas>
+              </div>
+              <div id="dash-corridor-summary"
+                style="font-size:13px;color:var(--text-2);background:var(--bg-elevated);padding:var(--space-md);border-radius:var(--r-md);line-height:1.7">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Detailed Corridor Table -->
+          <div class="card mb-lg">
+            <div class="card-title mb-md">Connected Corridor Telemetry Table</div>
+            <div class="table-wrap">
+              <table class="ng-table" id="table-dash-lanes">
+                <thead>
+                  <tr>
+                    <th>Corridor Arc</th>
+                    <th>Direction</th>
+                    <th class="num" id="th-corridor-flow">Flow</th>
+                    <th class="num">Distance</th>
+                    <th class="num">Cost / Unit</th>
+                    <th class="num">Transit Time</th>
+                    <th>Transport Mode</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          </div><!-- /#kpi-entity -->
+
+        </section>
+
+
+                <!-- ─────────────────── TAB: DIGITAL TWIN -->
+        <section class="tab-panel" id="tab-twin">
+          <!-- Controls Bar (2D/3D & Network State Toggles aligned like other pages) -->
+          <div class="twin-toolbar">
+            <div class="atlas-page-heading"><h1>Digital Twin</h1><span>Network topology</span></div>
+            <!-- 2D / 3D View Toggle -->
+            <div class="toggle-group" id="twin-view-toggle">
+              <button class="toggle-btn" data-view="2d" aria-pressed="false">2D Map</button>
+              <button class="toggle-btn active" data-view="3d" aria-pressed="true">3D Twin</button>
+            </div>
+            <!-- No network-state toggle. This screen is the twin of the
+                 network the client RUNS, and nothing else. A "Recommended"
+                 state offering a second network here asked the reader to hold
+                 two footprints in mind on a screen whose job is to show them
+                 one; what the engine recommends changing is said in words
+                 above, and tested as a scenario in the Scenario Planner. -->
+          </div>
+
+          <!-- What the algorithm recommends changing about this network.
+               One note, above both views, because it is a statement about the
+               PLAN rather than about the way the plan is being drawn — and it
+               stays on screen when the answer is "nothing", which is a finding
+               a reader would otherwise have to guess at. Filled by
+               renderRecommendedChangeNote(). -->
+          <div class="atlas-network-summary">
+            <div class="atlas-summary-stat"><img src="assets/icons/graph.svg" alt=""><div><strong id="atlas-node-count">—</strong><span>Network nodes</span></div></div>
+            <div class="atlas-summary-stat"><img src="assets/icons/path.svg" alt=""><div><strong id="atlas-flow-count">—</strong><span>Active corridors</span></div></div>
+            <div class="atlas-summary-stat atlas-risk-stat"><img src="assets/icons/warning.svg" alt=""><div><strong id="atlas-risk-label">—</strong><span>Overall risk</span></div></div>
+            <div class="twin-change-note" id="twin-change-note" hidden></div>
+          </div>
+
+          <div class="atlas-map-workspace">
+
+          <!-- 2D Leaflet Map (hidden by default) -->
+          <div class="card twin-view-panel" id="twin-2d-panel" style="padding:0;overflow:hidden;display:none;position:relative;z-index:0">
+            <div class="map-container tall" id="map-twin"></div>
+            <!-- Floating Stats Overlay (mirrors the 3D twin's). #twin-2d-panel's
+                 own z-index:0 above gives it a real stacking context so Leaflet's
+                 internal panes/controls (which carry z-index up to 1000) stay
+                 contained inside it instead of escaping past this sibling. -->
+            <!-- Top-left, the same corner as the 3D twin's. z-index clears
+                 Leaflet's own panes, which reach 1000. -->
+            <div class="twin3d-stats-overlay" id="map2d-stats" style="z-index:1100">
+              <div class="twin3d-stat">
+                <span class="twin3d-stat-value" id="map2d-node-count">—</span>
+                <span class="twin3d-stat-label">Network Nodes</span>
+              </div>
+              <div class="twin3d-stat">
+                <span class="twin3d-stat-value" id="map2d-flow-count">—</span>
+                <span class="twin3d-stat-label">Active Corridors</span>
+              </div>
+              <div class="twin3d-stat">
+                <span class="twin3d-stat-value" id="map2d-risk-label">—</span>
+                <span class="twin3d-stat-label">Overall Risk</span>
+              </div>
+              <div class="twin3d-country" id="map2d-country" hidden>
+                <span class="twin3d-country-pill">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.2 9h17.6M3.2 15h17.6"/><path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z"/></svg>
+                  <span class="twin3d-country-key">Country</span>
+                  <span class="twin3d-country-name" id="map2d-country-name"></span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3D Three.js Canvas -->
+          <div class="card twin-view-panel twin3d-card" id="twin-3d-panel" style="padding:0;overflow:hidden;position:relative">
+            <div class="twin3d-container" id="twin3d-canvas"></div>
+            <!-- Floating Stats Overlay -->
+            <div class="twin3d-stats-overlay" id="twin3d-stats">
+              <div class="twin3d-stat">
+                <span class="twin3d-stat-value" id="twin3d-node-count">—</span>
+                <span class="twin3d-stat-label">Network Nodes</span>
+              </div>
+              <div class="twin3d-stat">
+                <span class="twin3d-stat-value" id="twin3d-flow-count">—</span>
+                <span class="twin3d-stat-label">Active Corridors</span>
+              </div>
+              <div class="twin3d-stat">
+                <span class="twin3d-stat-value" id="twin3d-risk-label">—</span>
+                <span class="twin3d-stat-label">Overall Risk</span>
+              </div>
+              <div class="twin3d-country" id="twin3d-country" hidden>
+                <span class="twin3d-country-pill">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.2 9h17.6M3.2 15h17.6"/><path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z"/></svg>
+                  <span class="twin3d-country-key">Country</span>
+                  <span class="twin3d-country-name" id="twin3d-country-name"></span>
+                </span>
+              </div>
+            </div>
+            <!-- Camera Controls Hint -->
+            <div class="twin3d-hint">
+              <span>Drag to rotate · Scroll to zoom · Select a site to inspect</span>
+            </div>
+            <!-- Legend: node types, HOW MANY of each are on the map, and
+                 what the DC halo colour means. The counts are the answer to
+                 "how big is this network" — a question the map itself can
+                 only answer by counting dots, and one the reader should not
+                 have to hold in their head (Nielsen #6). Filled by
+                 renderTwinStats() from PLANTS / DCS / MARKETS. -->
+            <div class="twin3d-legend" hidden>
+              <div class="twin3d-legend-title">Network</div>
+              <div class="twin3d-legend-row"><span class="twin3d-legend-dot" style="background:#5b21b6"></span>Plant<span class="twin3d-legend-count" data-legend-count="plant">0</span></div>
+              <div class="twin3d-legend-row"><span class="twin3d-legend-dot" style="background:#94a3b8"></span>Distribution Centre<span class="twin3d-legend-count" data-legend-count="dc">0</span></div>
+              <div class="twin3d-legend-row"><span class="twin3d-legend-dot" style="background:#075985"></span>Demand Market<span class="twin3d-legend-count" data-legend-count="market">0</span></div>
+              <div class="twin3d-legend-divider">
+                <div class="twin3d-legend-title">DC Color = Utilisation</div>
+                <div class="twin3d-legend-row"><span class="twin3d-legend-dot" style="background:#b91c1c"></span>Critical (≥95%)</div>
+                <div class="twin3d-legend-row"><span class="twin3d-legend-dot" style="background:#b45309"></span>Stress (85–&lt;95%)</div>
+                <div class="twin3d-legend-row"><span class="twin3d-legend-dot" style="background:#047857"></span>Healthy (&lt;85%)</div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="atlas-map-legend" aria-label="Map layers and legend">
+            <label class="atlas-heat-toggle"><input type="checkbox" id="atlas-demand-heat" checked disabled> Demand heatmap</label>
+            <div class="atlas-legend-section"><h2>Network facilities</h2>
+              <div><img src="assets/icons/factory.svg" alt="">Plant<strong data-legend-count="plant">0</strong></div>
+              <div><img src="assets/icons/warehouse.svg" alt="">Distribution centre<strong data-legend-count="dc">0</strong></div>
+              <div><img src="assets/icons/map-pin.svg" alt="">Demand market<strong data-legend-count="market">0</strong></div>
+            </div>
+            <div class="atlas-legend-section"><h2>DC ring = utilisation</h2>
+              <div><span class="atlas-status-dot" style="--status:#b91c1c"></span>Critical (≥95%)</div>
+              <div><span class="atlas-status-dot" style="--status:#b45309"></span>Stress (85–&lt;95%)</div>
+              <div><span class="atlas-status-dot" style="--status:#047857"></span>Healthy (&lt;85%)</div>
+              <div><span class="atlas-status-dot" style="--status:#94a3b8"></span>Inactive / not solved</div>
+            </div>
+            <div class="atlas-legend-section"><h2>Demand density</h2><div class="atlas-density-scale" aria-hidden="true"></div><div class="atlas-density-labels"><span>Low</span><span>High</span></div>
+              <p id="atlas-demand-scope" role="status">Loading uploaded demand…</p>
+              <button type="button" class="atlas-text-button" id="atlas-demand-method">How to read this map</button>
+            </div>
+          </aside>
+          <div class="atlas-camera-controls" id="atlas-camera-controls" aria-label="3D camera controls">
+            <button type="button" data-camera="in" aria-label="Zoom in"><img src="assets/icons/plus.svg" alt=""></button>
+            <button type="button" data-camera="out" aria-label="Zoom out"><img src="assets/icons/minus.svg" alt=""></button>
+            <button type="button" data-camera="fit">Fit network</button>
+            <button type="button" data-camera="country">Country view</button>
+          </div>
+          <a class="atlas-map-credit" href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">Natural Earth · geographic relief</a>
+          </div>
+
+          <div class="atlas-facility-strips mt-lg">
+            <details class="card atlas-facility-strip">
+              <summary><img src="assets/icons/factory.svg" alt=""><strong>Plants (<span data-legend-count="plant">0</span>)</strong><span>Manufacturing sites producing supply for the network</span><img class="atlas-chevron" src="assets/icons/caret-down.svg" alt=""></summary>
+              <div class="card-table-scroll">
+                <table class="ng-table ng-table-compact" id="table-plants">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Plant ID</th>
+                      <th class="num">Capacity</th>
+                      <th class="num">Throughput</th>
+                      <th>Status</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </details>
+            <details class="card atlas-facility-strip" open>
+              <summary><img src="assets/icons/warehouse.svg" alt=""><strong>Distribution centres (<span data-legend-count="dc">0</span>)</strong><span>Warehousing sites that receive, store and distribute supply</span><img class="atlas-chevron" src="assets/icons/caret-down.svg" alt=""></summary>
+              <div class="atlas-strip-actions"><button type="button" id="atlas-dc-calculations">Map methodology</button><button type="button" id="atlas-dc-insights">KPIs &amp; insights</button></div>
+              <div class="card-table-scroll">
+                <table class="ng-table ng-table-compact" id="table-dcs">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>DC ID</th>
+                      <th class="num">Capacity</th>
+                      <th class="num">Utilisation</th>
+                      <th>Status</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </details>
+            <details class="card atlas-facility-strip">
+              <summary><img src="assets/icons/map-pin.svg" alt=""><strong>Demand markets (<span data-legend-count="market">0</span>)</strong><span>Customer markets that consume demand</span><img class="atlas-chevron" src="assets/icons/caret-down.svg" alt=""></summary>
+              <div class="card-table-scroll">
+                <table class="ng-table ng-table-compact" id="table-markets">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Market ID</th>
+                      <th class="num">Demand</th>
+                      <th>SLA</th>
+                      <th>Priority</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <!-- ─────────────────── TAB: FORECAST -->
+        <!-- ─────────────────── TAB: FORECAST ─────────────────
+             Laid out against Dump/Demand forecast.png:
+
+               row 0  what needs a decision, beside the forecast itself
+               row 1  the external signals influencing this forecast
+
+             The left column WAS the same attention card the Overview shows,
+             drawn by the same function into a second container, on the
+             reasoning that a network-level finding is as true here as it is
+             on Home. It is — and it is the answer to a different question. A
+             reader here is asking what the demand projection means, and was
+             handed the paragraph they had just read on the Overview.
+
+             It now shows the FORECAST's own briefing. The reasoning agent has
+             a FORECAST scope, the forecast workflow's reasoning step is given
+             the forecaster's own outlook to reason over (registry.synthesise),
+             and /api/forecast returns what it produced. The recommendation is
+             a scenario this application can run — demand at the rate the
+             forecast projects — and the card turns it into a button. -->
+        <section class="tab-panel" id="tab-forecast">
+
+          <!-- row 0 -->
+          <div class="fc-main">
+
+
+            <div class="ov-attn-card">
+              <div class="ov-attn-head">
+                <span class="ov-attn-star" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2.6 14.9 9 21.8 9.8 16.7 14.5 18.1 21.3 12 17.9 5.9 21.3 7.3 14.5 2.2 9.8 9.1 9"/></svg>
+                </span>
+                <!-- THE SAME HEADING THE SCENARIO PLANNER USES.
+                     "Needs your attention" names a queue, and a queue implies
+                     things to work through; what is under it is one briefing
+                     about one forecast. It also said nothing about where the
+                     words came from, on a card whose prose is written by the
+                     model over the forecaster's own figures. Same star, same
+                     words, same promise on both screens. -->
+                <h2 class="ov-attn-title">NetGravity's Recommendation</h2>
+              </div>
+              <div class="ov-attn-body" id="fc-attn-body">
+                <!-- renderForecastAttention('fc-attn-body') -->
+              </div>
+              <div class="ov-attn-foot">
+                <span class="ov-status-pill" id="fc-status-pill">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.4"/><polyline points="8.4 12.2 11 14.8 15.8 9.6"/></svg>
+                  <span>Data uploaded successfully</span>
+                </span>
+                <span class="ov-refresh-text">Last analysed:
+                  <span id="fc-refresh-time">not yet analysed</span>
+                  <button type="button" class="ov-refresh-btn" id="fc-refresh-btn"
+                          title="Re-run the analysis" aria-label="Re-run the analysis">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                  </button>
+                </span>
+              </div>
+            </div>
+
+            <div class="fc-chart-card">
+              <div class="fc-chart-head">
+                <!-- The title IS the series picker.
+                     The engine forecasts every market-product pair it has
+                     history for — 59 on the test workbook — and the mockup's
+                     title names exactly one of them. A select styled as the
+                     title keeps the mockup's line and keeps the other 58
+                     reachable, instead of burying them behind a menu. -->
+                <h2 class="fc-chart-title">
+                  <span class="fc-chart-title-prefix">Demand &mdash;</span>
+                  <span class="fc-series-wrap">
+                    <select class="fc-series-select" id="fc-series-select"
+                            aria-label="Which market and product to plot">
+                      <option value="">Loading&hellip;</option>
+                    </select>
+                    <svg class="fc-series-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                  </span>
+                </h2>
+                <div class="fc-chart-actions">
+                  <button type="button" class="fc-ghost-btn" id="fc-methodology-btn"
+                          aria-expanded="false" aria-controls="fc-method-panel">
+                    <span>View methodology</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 11.5 12.5"/><path d="M18 14.5V19a1.6 1.6 0 0 1-1.6 1.6H5A1.6 1.6 0 0 1 3.4 19V7.6A1.6 1.6 0 0 1 5 6h4.5"/></svg>
+                  </button>
+                  <div class="fc-menu-wrap">
+                    <button type="button" class="fc-kebab-btn" id="fc-more-btn"
+                            aria-haspopup="menu" aria-expanded="false"
+                            aria-label="More forecast actions">
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+                    </button>
+                    <div class="fc-menu" id="fc-more-menu" role="menu" hidden>
+                      <button type="button" class="fc-menu-item" role="menuitem" id="fc-menu-methodology">How this forecast was produced</button>
+                      <button type="button" class="fc-menu-item" role="menuitem" id="fc-menu-download">Download this series (CSV)</button>
+                      <button type="button" class="fc-menu-item" role="menuitem" id="fc-menu-signals">Jump to external signals</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- The chart's own key, in the card rather than inside the
+                   canvas: Chart.js draws its legend at whatever width is
+                   left, and it wrapped differently every time the series
+                   changed. -->
+              <div class="fc-legend" id="fc-legend" aria-hidden="true">
+                <span class="fc-legend-item"><span class="fc-legend-line solid"></span>Historical</span>
+                <span class="fc-legend-item"><span class="fc-legend-line dashed"></span>Forecast</span>
+                <span class="fc-legend-item"><span class="fc-legend-swatch"></span>Forecast range (p10&ndash;p90)</span>
+                <span class="fc-legend-item" id="fc-legend-capacity"><span class="fc-legend-line capacity"></span>Capacity</span>
+              </div>
+
+              <div class="fc-chart-wrap">
+                <canvas id="chart-forecast"></canvas>
+              </div>
+
+              <!-- Which half of the x-axis is observation and which is
+                   projection. The dashed line inside the chart marks the
+                   join; this names the two sides of it. -->
+              <div class="fc-axis-note" id="fc-axis-note">
+                <span class="fc-axis-span" id="fc-axis-hist"><span class="fc-axis-rule"></span>Historical</span>
+                <span class="fc-axis-span" id="fc-axis-fore"><span class="fc-axis-rule"></span>Forecast</span>
+              </div>
+
+              <!-- How the number was produced. Everything the "Forecast
+                   Summary" card used to list, behind the button the mockup
+                   puts in the header. -->
+              <div class="fc-method-panel" id="fc-method-panel" hidden>
+                <div class="fc-method-head">
+                  <h3 class="fc-method-title">How this forecast was produced</h3>
+                  <button type="button" class="fc-method-close" id="fc-method-close" aria-label="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                  </button>
+                </div>
+                <dl class="fc-method-grid">
+                  <div class="fc-method-row"><dt>Model</dt><dd id="fc-model">&mdash;</dd></div>
+                  <div class="fc-method-row"><dt>Horizon</dt><dd id="fc-horizon">&mdash;</dd></div>
+                  <div class="fc-method-row"><dt>Forecast accuracy (MASE)</dt><dd id="fc-accuracy">&mdash;</dd></div>
+                  <div class="fc-method-row"><dt>Series shown</dt><dd id="fc-series">&mdash;</dd></div>
+                  <div class="fc-method-row"><dt>History observed</dt><dd id="fc-periods">&mdash;</dd></div>
+                  <div class="fc-method-row"><dt>Series forecast</dt><dd id="fc-series-count">&mdash;</dd></div>
+                  <div class="fc-method-row"><dt>Status</dt><dd id="fc-chart-tag">&mdash;</dd></div>
+                </dl>
+                <p class="fc-method-note" id="fc-chart-subtitle">&mdash;</p>
+                <p class="fc-method-note fc-method-prov" id="fc-method-prov"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- row 1 -->
+          <div class="ov-signals-card" id="fc-signals-card">
+            <div class="ov-signals-head">
+              <h2 class="ov-signals-title">External signals influencing this forecast</h2>
+              <button class="home-section-link" id="fc-view-all-signals"
+                      aria-expanded="false" aria-controls="fc-signals-all">
+                <span id="fc-view-all-signals-label">View all signals</span>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 10h10M11 6l4 4-4 4"/></svg>
+              </button>
+            </div>
+            <div class="ov-signals-row" id="fc-signals-row">
+              <!-- renderHomeSignals('fc-signals-row') -->
+            </div>
+            <!-- Everything the upload stated about each signal — rationale,
+                 geography, direction, magnitude, confidence, intended use.
+                 The three cards above are the summary; this is the detail
+                 they summarise, and it is what "View all signals" opens. -->
+            <div class="fc-signals-all" id="fc-signals-all" hidden>
+              <div id="external-signals"><!-- renderDataIntelligence() --></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ─────────────────── TAB: SCENARIOS ─────────────────── -->
+        <section class="tab-panel" id="tab-scenarios">
+          <!-- Single unified scenario-planning view: multi-scenario comparison
+               is the base, with a compact scenario selector (rather than one
+               chip per scenario, which crowds out once there are more than a
+               few) and the Digital Twin visual context folded in at the
+               bottom instead of living on a separate "deep dive" tab. -->
+          <div class="scn-page-header">
+            <div class="scn-header-subtitle">Compare up to 3 scenarios side-by-side against your current network.</div>
+            <button class="scn-create-btn" id="btn-create-scenario-main" title="Create a new scenario">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Create New Scenario</span>
+            </button>
+          </div>
+
+          <!-- Scenario selector: only the currently-selected scenarios (up to
+               3) show as removable chips; everything else lives behind "Add
+               Scenario" so the bar stays compact no matter how many
+               scenarios exist. -->
+          <div class="scn-selector-bar">
+            <span class="scn-selector-label">Comparing</span>
+            <div class="scn-selected-chips" id="scn-selected-chips">
+              <!-- Populated by JS -->
+            </div>
+            <div class="scn-add-scenario-wrap" id="scn-add-scenario-wrap">
+              <button type="button" class="scn-customize-btn" id="scn-add-scenario-btn">
+                <span>+ Add scenario to compare</span>
+              </button>
+              <div class="scn-scenario-dropdown-menu" id="scn-add-scenario-menu">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+          </div>
+
+          <div class="scn-single-2col">
+            <div class="scn-single-left">
+              <div class="scn-table-card">
+                <div class="scn-table-header-row">
+                  <div class="scn-table-title">Comparison</div>
+                  <div class="scn-customize-wrap" id="scn-multi-customize-wrap">
+                    <button type="button" class="scn-customize-btn" id="scn-multi-customize-btn">
+                      <span>🛠️ Customize metrics</span>
+                    </button>
+                    <div class="scn-customize-menu" id="scn-multi-customize-menu"><!-- Populated by JS --></div>
+                  </div>
+                </div>
+                <div class="scn-multi-table-wrap" id="multi-scenario-table-wrap">
+                  <!-- Populated by JS -->
+                </div>
+              </div>
+
+              <!-- THE MAP IS IN THE EVIDENCE COLUMN, not below the whole grid.
+
+                   It used to be a full-width card after the two columns, which
+                   meant the grid row ended at the taller of the table and the
+                   recommendation — and the recommendation card is `position:
+                   sticky`, which travels only inside its own column. With no
+                   column left to travel in it did not stick at all: scrolling
+                   down to the map carried the card up under the top bar and
+                   out of the window, so the reader was looking at a scenario's
+                   network with no recommendation about it on screen.
+
+                   In this column the card stays pinned for the whole length of
+                   the evidence. The map loses about a quarter of its width and
+                   keeps its height; a recommendation you can still read while
+                   you look at the network it is about is worth more than the
+                   width. -->
+              <div class="scn-visual-context-card">
+                <div class="scn-table-header-row" style="margin-bottom:8px">
+                  <div class="scn-table-title">Digital Twin — Visual Context</div>
+                  <div class="toggle-group" id="scn-map-toggle-group">
+                    <!-- Populated by JS -->
+                  </div>
+                </div>
+                <div class="scn-map-wrap" id="scenario-map-wrap">
+                  <div id="scenario-leaflet-map" style="width:100%;height:100%"></div>
+                  <!-- THE SAME KEY CONTROL THE DIGITAL TWIN USES.
+                       It was a permanently-expanded strip below the map: the
+                       same rows, taking about a fifth of a panel whose whole
+                       job is to show a network, on a screen where the reader
+                       has already met this key on the twin.
+                       A dock instead — closed until asked for, opening upward
+                       over the map, closing when the reader touches the
+                       network underneath. Same markup, same behaviour, same
+                       initialiser (`initLegendDock`), because a key that works
+                       differently on the second screen is a second thing to
+                       learn. Filled by `addLegend`. -->
+                  <div class="tw-legend-dock" id="scn-legend-dock">
+                    <div class="tw-legend tw-legend-dock-panel tw-legend-below" id="scenario-map-legend" hidden></div>
+                    <button type="button" class="tw-legend-dock-bar" id="scn-legend-toggle"
+                            aria-expanded="false" aria-controls="scenario-map-legend">
+                      <span class="tw-legend-dock-peek" id="scn-legend-peek" aria-hidden="true"></span>
+                      <span class="tw-legend-dock-label">Key</span>
+                      <svg class="tw-legend-dock-chevron" width="14" height="14" viewBox="0 0 24 24"
+                           fill="none" stroke="currentColor" stroke-width="2.4"
+                           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M6 15l6-6 6 6"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right column: NetGravity's take -->
+            <div class="scn-single-right">
+              <div class="scn-take-card" id="scn-multi-take-card">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Create New Scenario Pop-Up Modal (Blurs background, appears only on click) -->
+          <div class="modal-overlay" id="modal-create-toolbox">
+            <div class="modal-box scenario-toolbox-modal">
+              <div class="toolbox-header">
+                <div>
+                  <div class="card-title" style="font-size:16px">Create New Scenario</div>
+                  <div class="text-xs text-muted">Configure custom network intervention parameters for MILP evaluation.</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" id="btn-close-toolbox">✕</button>
+              </div>
+
+              <!-- Form Body (visible during configuration) -->
+              <div id="toolbox-form-body">
+                <!-- Scenario Name — applies regardless of type, so it sits
+                     above the numbered steps rather than as one of them. -->
+                <div class="form-group" style="margin-bottom:16px">
+                  <label class="form-label">Scenario Name</label>
+                  <input type="text" class="form-input" id="toolbox-scenario-name" placeholder="e.g. Peak Season Capacity Boost" maxlength="60">
+                </div>
+
+                <!-- Step 1: Select Scenario Type -->
+                <div class="toolbox-step">
+                  <div class="toolbox-step-num">1</div>
+                  <div class="toolbox-step-content">
+                    <div class="toolbox-step-title">What do you want to change?</div>
+                    <div class="scn-type-grid">
+                      <button class="scn-type-card active" data-type="CHANGE_CAPACITY">
+                        <span class="scn-type-icon">🛡️</span>
+                        <span class="scn-type-label">Change Capacity</span>
+                      </button>
+                      <button class="scn-type-card" data-type="OPEN_FACILITY">
+                        <span class="scn-type-icon">🏪</span>
+                        <span class="scn-type-label">Open Facility</span>
+                      </button>
+                      <button class="scn-type-card" data-type="CLOSE_FACILITY">
+                        <span class="scn-type-icon">✕</span>
+                        <span class="scn-type-label">Close Facility</span>
+                      </button>
+                      <button class="scn-type-card" data-type="CHANGE_DEMAND">
+                        <span class="scn-type-icon">📈</span>
+                        <span class="scn-type-label">Change Demand</span>
+                      </button>
+                      <button class="scn-type-card" data-type="CHANGE_TRANSPORT_COST">
+                        <span class="scn-type-icon">🚛</span>
+                        <span class="scn-type-label">Change Transport Cost</span>
+                      </button>
+                      <button class="scn-type-card" data-type="CHANGE_SLA">
+                        <span class="scn-type-icon">⏱️</span>
+                        <span class="scn-type-label">Change SLA</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Step 2: Configure Changes (Dynamically populated based on Scenario Type) -->
+                <div class="toolbox-step">
+                  <div class="toolbox-step-num">2</div>
+                  <div class="toolbox-step-content">
+                    <div class="flex items-center justify-between mb-xs">
+                      <div class="toolbox-step-title" style="margin-bottom:0">Configure Parameters</div>
+                      <span class="tag tag-primary" id="toolbox-active-type-badge" style="font-size:9.5px;padding:2px 7px">Change Capacity</span>
+                    </div>
+                    <div class="text-xs text-muted mb-sm" id="toolbox-active-type-desc">Specify capacity expansion or reduction parameters.</div>
+
+                    <!-- Dynamic Fields Container -->
+                    <div id="toolbox-dynamic-fields">
+                      <!-- Populated dynamically by JS -->
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Step 3: Optimization Objective & Constraints -->
+                <div class="toolbox-step">
+                  <div class="toolbox-step-num">3</div>
+                  <div class="toolbox-step-content">
+                    <div class="toolbox-step-title">Objective &amp; Constraints</div>
+
+                    <!--
+                      These were three dropdowns - "Optimise for", "Subject to
+                      Constraint" and "Solver Backend" - offering eleven choices
+                      between them. Nothing read any of them: no line of
+                      JavaScript referenced their ids, and
+                      /api/scenarios/simulate accepts no objective, constraint
+                      or solver field at all.
+
+                      So a user selected "Capacity Utilisation <= 90%", ran the
+                      scenario, got a result that breached 90%, and had no way
+                      to know the constraint had never been posed. Approving a
+                      plan believing it satisfies a constraint you selected is
+                      the exact failure a what-if screen exists to prevent.
+
+                      Replaced by a statement of what the solve ACTUALLY does.
+                      Offering the choice again means implementing it in the
+                      engine first, not re-adding the control.
+                    -->
+                    <div class="text-sm" style="background:var(--surface-2,#f8fafc);border:1px solid var(--border-light);border-radius:8px;padding:12px 14px;line-height:1.7">
+                      <div style="font-weight:700;color:var(--text-1);margin-bottom:6px">
+                        How this scenario is solved
+                      </div>
+                      <div style="color:var(--text-2)">
+                        <strong>Objective:</strong> minimise total network cost -
+                        transport, handling, fixed facility, inventory and carbon.
+                      </div>
+                      <div style="color:var(--text-2)">
+                        <strong>Subject to:</strong> each market's stated service
+                        level (a lane slower than the promise is removed before
+                        the solve), every facility's stated capacity, and lane
+                        capacities where the upload states them.
+                      </div>
+                      <div style="color:var(--text-2)">
+                        <strong>Solver:</strong> PuLP / HiGHS branch-and-cut.
+                      </div>
+                      <div class="text-xs" style="color:var(--text-3);margin-top:8px">
+                        Selectable objectives and a utilisation cap are not
+                        implemented by this engine. Capacity risk in the result
+                        is reported, not constrained.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Footer Buttons -->
+                <div class="flex items-center justify-between mt-lg pt-md" style="border-top:1px solid var(--border-light)">
+                  <button class="btn btn-secondary btn-sm" id="btn-cancel-toolbox">Cancel</button>
+                  <button class="btn btn-primary" id="btn-run-toolbox-scenario" style="padding:10px 24px;font-size:13.5px;font-weight:700">
+                    <span>▶ Run Scenario</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Solver Execution State (Phased Execution) -->
+              <!-- Why a run stopped, and the way back to the form.
+                   This used to be an execution view: a "NetGravity
+                   Mathematical Engine" header and six phases with a spinner,
+                   drawn inside the modal while the agent dialog was already on
+                   screen in front of it reporting the same wait. Two loading
+                   states for one request. The dialog is the loading screen;
+                   this is only ever seen when something failed. -->
+            </div>
+          </div>
+        </section>
+
+
+      </main>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- GLOBAL FLOATING CHATBOT FAB (Across all screens)               -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <button class="floating-chatbot-fab" id="floating-chatbot-fab" data-action="openChatbotModal" title="Ask Netgravity AI">
+    <div class="chatbot-fab-icon-wrap">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C6.48 2 2 6.03 2 11C2 13.88 3.52 16.41 5.89 17.97V21.5C5.89 21.84 6.22 22.08 6.53 21.94L10.37 20.26C10.9 20.35 11.44 20.4 12 20.4C17.52 20.4 22 16.37 22 11.4C22 6.43 17.52 2 12 2Z" fill="white"/>
+        <circle cx="8" cy="11" r="1.5" fill="#9218EA"/>
+        <circle cx="12" cy="11" r="1.5" fill="#9218EA"/>
+        <circle cx="16" cy="11" r="1.5" fill="#9218EA"/>
+      </svg>
+    </div>
+    <span>Ask Netgravity</span>
+    <span class="chatbot-fab-sparkle">✨</span>
+  </button>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ASK NETGRAVITY AI POPUP MODAL (Matches chatbot.png exactly)    -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="chatbot-modal-overlay" id="chatbot-modal-overlay" data-action="closeChatbotModal" data-self-only="1">
+    <div class="chatbot-modal-dialog" id="chatbot-modal-dialog">
+      <!-- Modal Header -->
+      <div class="chatbot-modal-header">
+        <div class="chatbot-header-brand">
+          <div class="chatbot-header-logo-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2C6.48 2 2 6.03 2 11C2 13.88 3.52 16.41 5.89 17.97V21.5C5.89 21.84 6.22 22.08 6.53 21.94L10.37 20.26C10.9 20.35 11.44 20.4 12 20.4C17.52 20.4 22 16.37 22 11.4C22 6.43 17.52 2 12 2Z" fill="white"/>
+              <circle cx="8" cy="11" r="1.5" fill="#9218EA"/>
+              <circle cx="12" cy="11" r="1.5" fill="#9218EA"/>
+              <circle cx="16" cy="11" r="1.5" fill="#9218EA"/>
+            </svg>
+          </div>
+          <div class="chatbot-header-text">
+            <h3 class="chatbot-header-title">Ask Netgravity</h3>
+            <p class="chatbot-header-subtitle">Your AI assistant for network design and optimization</p>
+          </div>
+        </div>
+        <button class="chatbot-modal-close" data-action="closeChatbotModal" title="Close (Esc)">✕</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="chatbot-modal-body" id="chatbot-modal-body">
+        <!-- Welcome Banner -->
+        <div class="chatbot-welcome-banner">
+          <div class="chatbot-welcome-sparkle-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" fill="#9218EA" stroke="#9218EA"/>
+            </svg>
+          </div>
+          <div class="chatbot-welcome-content">
+            <h4 class="chatbot-welcome-greeting">Hi there! 👋</h4>
+            <p class="chatbot-welcome-text">I'm Netgravity AI, here to help you explore your network, scenarios, KPIs, and recommendations. Ask me anything.</p>
+          </div>
+          <!-- Decorative Network Mesh SVG -->
+          <svg class="chatbot-welcome-bg-art" viewBox="0 0 160 100" fill="none" stroke="#9218EA" stroke-width="1.2">
+            <line x1="20" y1="30" x2="70" y2="20" />
+            <line x1="70" y1="20" x2="130" y2="40" />
+            <line x1="70" y1="20" x2="90" y2="75" />
+            <line x1="20" y1="30" x2="90" y2="75" />
+            <line x1="90" y1="75" x2="145" y2="80" />
+            <line x1="130" y1="40" x2="145" y2="80" />
+            <circle cx="20" cy="30" r="4" fill="#9218EA" />
+            <circle cx="70" cy="20" r="5" fill="#9218EA" />
+            <circle cx="130" cy="40" r="4" fill="#9218EA" />
+            <circle cx="90" cy="75" r="5" fill="#9218EA" />
+            <circle cx="145" cy="80" r="4" fill="#9218EA" />
+          </svg>
+        </div>
+
+        <!-- FAQ Section -->
+        <div id="chatbot-faq-section">
+          <div class="chatbot-section-heading">Frequently asked questions</div>
+          <div class="chatbot-faq-list">
+            <!-- First, and deliberately: this is the card for a reader who
+                 does not yet know what to ask. It is answered by the
+                 CAPABILITY_QUERY intent from the planner's own workflow
+                 catalogue — no solve, and nothing it can claim that this
+                 build cannot run. -->
+            <div class="chatbot-faq-card" data-action="askChatbotPrompt" data-arg="What can you do?">
+              <div class="chatbot-faq-card-left">
+                <svg class="chatbot-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9.2"/>
+                  <path d="M9.3 9.2a2.8 2.8 0 1 1 3.6 2.7c-.6.2-.9.7-.9 1.3v.6"/>
+                  <line x1="12" y1="16.9" x2="12" y2="16.91"/>
+                </svg>
+                <span class="chatbot-faq-text">What can you do?</span>
+              </div>
+              <span class="chatbot-faq-chevron">›</span>
+            </div>
+
+            <div class="chatbot-faq-card" data-action="askChatbotPrompt" data-arg="What is my total network cost, and what makes it up?">
+              <div class="chatbot-faq-card-left">
+                <svg class="chatbot-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="chatbot-faq-text">What is my total network cost, and what makes it up?</span>
+              </div>
+              <span class="chatbot-faq-chevron">›</span>
+            </div>
+
+            <div class="chatbot-faq-card" data-action="askChatbotPrompt" data-arg="Which distribution centre is most utilised?">
+              <div class="chatbot-faq-card-left">
+                <svg class="chatbot-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="chatbot-faq-text">Which distribution centre is most utilised?</span>
+              </div>
+              <span class="chatbot-faq-chevron">›</span>
+            </div>
+
+            <div class="chatbot-faq-card" data-action="askChatbotPrompt" data-arg="How much of my demand is served, and how much is not?">
+              <div class="chatbot-faq-card-left">
+                <svg class="chatbot-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="chatbot-faq-text">How much of my demand is served, and how much is not?</span>
+              </div>
+              <span class="chatbot-faq-chevron">›</span>
+            </div>
+
+            <div class="chatbot-faq-card" data-action="askChatbotPrompt" data-arg="Which of my scenarios has the lowest network cost?">
+              <div class="chatbot-faq-card-left">
+                <svg class="chatbot-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="chatbot-faq-text">Which of my scenarios has the lowest network cost?</span>
+              </div>
+              <span class="chatbot-faq-chevron">›</span>
+            </div>
+
+            <div class="chatbot-faq-card" data-action="askChatbotPrompt" data-arg="How many facilities, corridors and markets do I have?">
+              <div class="chatbot-faq-card-left">
+                <svg class="chatbot-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="chatbot-faq-text">How many facilities, corridors and markets do I have?</span>
+              </div>
+              <span class="chatbot-faq-chevron">›</span>
+            </div>
+
+            <div class="chatbot-faq-card" data-action="askChatbotPrompt" data-arg="Which facility has the highest resilience exposure?">
+              <div class="chatbot-faq-card-left">
+                <svg class="chatbot-faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="chatbot-faq-text">Which facility has the highest resilience exposure?</span>
+              </div>
+              <span class="chatbot-faq-chevron">›</span>
+            </div>
+          </div>
+
+          <!-- Filter Pills -->
+          <div class="chatbot-pills-row">
+            <button class="chatbot-pill-btn" data-action="askChatbotPrompt" data-arg="What is the current network cost, utilisation and fill rate?">
+              <span class="pill-icon" style="color:#9218EA">✨</span>
+              <span>Summarize key insights</span>
+            </button>
+            <button class="chatbot-pill-btn" data-action="askChatbotPrompt" data-arg="Which sites have the highest utilisation and the least headroom?">
+              <span class="pill-icon">🛡️</span>
+              <span>Capacity risks</span>
+            </button>
+            <button class="chatbot-pill-btn" data-action="askChatbotPrompt" data-arg="Where is the highest cost in my network?">
+              <span class="pill-icon" style="color:#16a34a;font-weight:700">↓</span>
+              <span>Cost opportunities</span>
+            </button>
+            <!-- "More prompts ⌄" WAS HERE. It was a UI affordance wired to
+                 the chat endpoint, sending the literal string "Show more
+                 recommended AI prompts" to the optimisation engine — a
+                 question that is not a question, against a build with no
+                 further prompt list to reveal. It could only ever answer "I
+                 could not work out what you would like me to do", which is
+                 the one thing a suggestion control must never do. -->
+          </div>
+        </div>
+
+        <!-- Chat Messages Container (Shown during active conversation) -->
+        <div id="chatbot-chat-view" class="chatbot-chat-view" style="display:none;"></div>
+      </div>
+
+      <!-- Bottom Input Field -->
+      <div class="chatbot-input-wrap">
+        <input type="text" class="chatbot-modal-input" id="chatbot-modal-input" placeholder="Type your question here..." />
+        <button class="chatbot-modal-send-btn" id="chatbot-modal-send" title="Send (Enter)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Footer Disclaimer -->
+      <div class="chatbot-footer-disclaimer">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span>Netgravity AI can make mistakes. Verify important information.</span>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- NETGRAVITY AUTONOMOUS AGENT REASONING ENGINE MODAL              -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- Facility Detail Panel Overlay (Hidden by default, slides in from right when active) -->
+  <div class="facility-panel-overlay" id="facility-panel-overlay" style="display:none;" data-action="closeFacilityPanel" data-self-only="1">
+    <div class="facility-panel" id="facility-panel">
+      <button class="facility-panel-close" id="fp-close" data-action="closeFacilityPanel">✕</button>
+      <div id="fp-content"></div>
+    </div>
+  </div>
+
+  <!-- Recommendation / Action Drawer Overlay (Right slide-in with backdrop
+       blur). Still used by scenarios.js's "Scenario Comparison Actions"
+       detail drawer — do not remove even though Home's attention feed no
+       longer opens it (that now navigates to a full-page deep dive). -->
+  <div class="action-drawer-overlay" id="action-drawer-overlay" data-action="closeActionDrawer" data-self-only="1">
+    <div class="action-drawer" id="action-drawer">
+      <button class="facility-panel-close" id="action-drawer-close" data-action="closeActionDrawer">✕</button>
+      <div id="action-drawer-content"></div>
+    </div>
+  </div>
+
+  <!-- Scenario Detail Drawer (right slide-in) — "Why this scenario?" /
+       "Review proposed changes" on the Scenario Planning page. -->
+  <div class="scenario-drawer-overlay" id="scenario-drawer-overlay" data-action="closeSelf" data-self-only="1">
+    <div class="scenario-drawer" id="scenario-drawer">
+      <button class="facility-panel-close" id="scenario-drawer-close">✕</button>
+      <div id="scenario-drawer-content"></div>
+    </div>
+  </div>
+
+  <!-- Metric Drilldown Modal (Scenario Planning) — the single authoritative
+       evidence trail for a KPI (S9: Explainability Drilldown). Only the
+       Capacity Risk row currently opens this (see scenarios.js) — other
+       metric branches exist in openMetricDrilldown() but stay unwired for
+       now so this doesn't duplicate S6's Total Network Cost ownership. -->
+  <div class="modal-overlay" id="modal-metric-drilldown">
+    <div class="modal-box" style="max-width:480px">
+      <div class="toolbox-header">
+        <div class="card-title" style="font-size:16px" id="drilldown-title">Metric Drill-Down</div>
+        <button class="btn btn-ghost btn-sm" id="modal-close-drilldown">✕</button>
+      </div>
+      <span class="provenance-badge model-fact" id="drilldown-provenance-tag" style="margin-bottom:12px;display:inline-block">PROVENANCE</span>
+      <div id="drilldown-body-content"></div>
+      <div style="margin-top:16px;text-align:right">
+        <button class="btn btn-secondary" id="btn-close-drilldown-bottom">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- S12: Signal Guardrails & Admin — replaces the old alert() stub that
+       used to sit on the Settings nav item. Populated from GOVERNANCE_TIERS
+       and SYSTEM_STATUS (data.js), both previously fully authored but never
+       wired into any screen. Trigger keywords/buckets and Product Master
+       have no backing data anywhere in this build, so they show an
+       explicit "Not available" rather than invented content. -->
+  <div class="modal-overlay" id="modal-admin-settings">
+    <div class="modal-box" style="max-width:640px">
+      <div class="toolbox-header">
+        <div class="card-title" style="font-size:16px">Netgravity Settings</div>
+        <button class="btn btn-ghost btn-sm" id="btn-close-admin-settings">✕</button>
+      </div>
+      <div class="text-xs text-muted" style="margin-bottom:14px">Admin &amp; configuration — not an analytics dashboard.</div>
+      <div id="admin-settings-body"></div>
+      <div style="margin-top:16px;text-align:right">
+        <button class="btn btn-secondary" id="btn-close-admin-settings-bottom">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

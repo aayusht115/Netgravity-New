@@ -1,0 +1,2076 @@
+/* ═════════════════════════════════════════════════════════════════════
+   NETGRAVITY HOME OVERVIEW STYLES
+   Reference: Dump/Home Overview-updated.png
+
+   Reference (redesign): Dump/Updated Home Page.png
+
+   Layout: left column is a full-height, independently-scrollable feed
+   that merges what used to be two separate "Insights" and
+   "Recommendations" preview cards into one prioritized attention list,
+   with the first (most important) item given extra visual weight. Right
+   column is the 3D Digital Twin preview (same engine as the Digital Twin
+   tab — see twin3d.js) at full column height. Below both columns, a
+   full-width "Network today" strip carries the 3 headline KPIs. Facility/
+   period context for Home lives in the global topbar — see
+   updateTopBarLayout() in app.js, which hides the generic sub-topbar row
+   for this tab only.
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* Purple gradient backdrop for Home only — bleeds out to the edges of
+   .main-content (right of the sidebar, below the topbar) via a negative
+   margin equal to that container's own padding, then adds the same
+   amount back so the content inside sits exactly where it did before.
+   flex:1 (main-content.home-full-bleed is a column flex container — see
+   style.css) is what actually reaches the bottom edge: .main-content is
+   stretched to the full viewport height by its own flex-row parent
+   (.app-body), but percentage heights don't account for #tab-home's
+   preceding sibling (the topbar) eating into that space, so a percentage
+   here still fell short — flex:1 fills exactly what's left instead. */
+#tab-home {
+  margin: calc(-1 * var(--space-lg));
+  padding: var(--space-lg);
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+  /* Straight top-to-bottom fade, not diagonal: a diagonal angle put its
+     darker end specifically in the top-right corner, right where it
+     bordered the topbar's flat white — reading as a hard cutoff there
+     even though the top-left blended fine near the gradient's lighter
+     origin. A vertical fade keeps every point along the top edge the
+     same light shade regardless of x-position, so it meets the topbar
+     evenly on both sides, then deepens further down the page. */
+  background: linear-gradient(180deg, #f8f4fd 0%, #f1e7fa 55%, #e9d9f6 100%);
+}
+
+.home2-container {
+  display: grid;
+  grid-template-columns: 500px 1fr;
+  gap: 20px;
+  width: 100%;
+  align-items: start;
+  /* A little breathing room below the global topbar, since Home hides the
+     generic sub-topbar row every other tab uses for that spacing. */
+  margin-top: 16px;
+  /* Full-height columns: viewport minus the global topbar above this
+     section, the margin-top just added, the "Network today" KPI strip
+     below both columns, and clearance for the floating "Ask Netgravity"
+     button (fixed bottom-right — see .floating-chatbot-fab in
+     chatbot.css) so the strip's "View all KPIs" link never sits under
+     it. Both children scroll internally rather than the page. */
+  height: calc(100vh - 338px);
+  min-height: 420px;
+}
+
+@media (max-width: 1180px) {
+  .home2-container {
+    grid-template-columns: 420px 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  .home2-container {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+}
+
+/* ─── Shared section header (still used by the KPI row's "View all
+   KPIs" link and the Digital Twin card's "Open Digital Twin" link) ─── */
+.home-section-link {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #9218EA;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.home-section-link:hover {
+  color: #790fc7;
+  transform: translateX(2px);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   LEFT COLUMN — merged attention feed
+   ═══════════════════════════════════════════════════════════════════ */
+.home2-left-col {
+  height: 100%;
+  min-height: 0;
+}
+
+.home2-attn-card {
+  background: linear-gradient(180deg, #fdfbff 0%, #ffffff 22%);
+  border: 1px solid #6B2FA0;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(146, 24, 234, 0.1);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.home2-attn-header {
+  padding: 20px 20px 16px;
+  background: linear-gradient(135deg, #f8f0fd 0%, #fdfbff 60%);
+  border-bottom: 1px solid #ece0fa;
+  flex-shrink: 0;
+}
+
+.home2-attn-title {
+  font-size: 19px;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.015em;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.home2-attn-highlight {
+  color: #9218EA;
+}
+
+.home2-attn-sub {
+  font-size: 12.5px;
+  color: #6b7280;
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+
+.home2-attn-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.home2-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.home2-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #16a34a;
+  flex-shrink: 0;
+}
+
+.home2-refresh-text {
+  font-size: 11.5px;
+  color: #9ca3af;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.home2-refresh-btn {
+  border: none;
+  background: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 3px;
+  display: inline-flex;
+  border-radius: 5px;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.3s ease;
+}
+
+.home2-refresh-btn:hover {
+  color: #9218EA;
+  background: #f5f0fa;
+}
+
+.home2-refresh-btn.spinning svg {
+  animation: home2RefreshSpin 0.6s linear;
+}
+
+@keyframes home2RefreshSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.home2-attn-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.home2-attn-empty {
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* ─── What the engine recommends ────────────────────────────
+   Sits below the scrolling feed, outside it, so the one thing on the card
+   that says what to DO does not scroll out of view behind a long list of
+   findings. */
+.home2-rec {
+  flex: 0 0 auto;
+  border-top: 1px solid #f1f5f9;
+  padding: 14px 16px 16px;
+}
+
+.home2-rec-empty {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.home2-rec-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6B2FA0;
+  margin-bottom: 6px;
+}
+
+.home2-rec-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #1f2937;
+}
+
+.home2-rec-drivers {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #4b5563;
+}
+
+.home2-rec-limitation {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Amber rather than red: an incomplete or unverified basis is a caveat on the
+   recommendation, not a failure of the network. */
+.home2-rec-warning {
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 12px;
+  color: #92400e;
+}
+
+.home2-attn-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #f1f5f9;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.home2-attn-item:hover {
+  background: #faf5ff;
+  border-color: #e4d3fb;
+  box-shadow: 0 3px 10px rgba(146, 24, 234, 0.06);
+}
+
+/* The top item in the merged feed gets extra emphasis — a purple-tinted,
+   bordered card with a bold risk-amount callout — so the single most
+   important thing on Home reads first, per Dump/Updated Home Page.png. */
+.home2-attn-item.featured {
+  padding: 16px;
+  background: linear-gradient(180deg, #faf5ff 0%, #ffffff 65%);
+  border: 1.5px solid #d9bdf7;
+  box-shadow: 0 4px 16px rgba(146, 24, 234, 0.1);
+}
+
+.home2-attn-item.featured:hover {
+  box-shadow: 0 6px 20px rgba(146, 24, 234, 0.16);
+}
+
+.home2-attn-badge-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #9218EA;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.home2-attn-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.home2-attn-item.featured .home2-attn-icon {
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+}
+
+.home2-attn-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.home2-attn-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 2px;
+}
+
+.home2-attn-item-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.4;
+}
+
+.home2-attn-item.featured .home2-attn-item-title {
+  font-size: 15px;
+}
+
+.home2-attn-risk-line {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-top: 5px;
+}
+
+.home2-attn-item-sub {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin-top: 3px;
+}
+
+.home2-attn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9218EA;
+  margin-top: 7px;
+}
+
+.home2-attn-item:hover .home2-attn-link {
+  text-decoration: underline;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RIGHT COLUMN — compact KPI row + Digital Twin
+   ═══════════════════════════════════════════════════════════════════ */
+.home2-right-col {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ROW 1 — the network's headline figures, at the TOP of the page.
+
+   It was the bottom row, under a two-column body grid. It is the first
+   thing now: the first question a reader has on opening this page is "is
+   the network alright", and five figures answer it in a glance, whereas
+   three findings answer it only after they have been read.
+
+   Purple-tinted icon badges match the site's accent; the full breakdown
+   is behind "View all KPIs" at the FOOT of the strip. At the foot, and
+   not in a top-right corner: the corner competes with the first figure
+   for the first fixation, and the foot is where the eye leaves the row.
+   ═══════════════════════════════════════════════════════════════════ */
+.home2-kpi-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 24px 10px;
+  background: #ffffff;
+  border: 1px solid #eef0f3;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+/* The strip's own name. Visible to a screen reader, which needs to know
+   what the five figures below are OF; not drawn, because the figures are
+   labelled individually and a sixth label above them is noise. */
+.ov-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Even columns rather than a left-packed flex row.
+   Tiles at their natural widths left about a third of a 1400px strip
+   empty, all of it in one block on the right; equal columns spend it as
+   rhythm instead. `grid-auto-columns` rather than a column count, so this
+   rule does not have to be edited when HOME_KPI_TILES is. */
+.home2-kpi-strip-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: center;
+  column-gap: 18px;
+  min-width: 0;
+}
+
+.home2-kpi-strip-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+/* A hairline between columns: across a strip this wide, five figures with
+   nothing between them read as one sentence. */
+.home2-kpi-strip-item + .home2-kpi-strip-item {
+  border-left: 1px solid #f0f1f4;
+  padding-left: 18px;
+}
+
+.home2-kpi-strip-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--purple-50, #f5f0fa);
+  color: var(--primary, #6B2FA0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.home2-kpi-strip-icon svg { width: 19px; height: 19px; }
+
+.home2-kpi-strip-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-1, #1a1a2e);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.home2-kpi-strip-name {
+  font-size: 12.5px;
+  color: var(--text-2, #5a5a72);
+  margin-top: 1px;
+  /* Five names in the width three used to have. The long ones wrap rather
+     than push their neighbours out of alignment. */
+  line-height: 1.3;
+}
+
+/* Retained, unused: there is no previous-period baseline in this build, so
+   any arrow drawn here would compare against a number that does not exist.
+   Kept because the tone pair is the one the rest of the app uses, and a
+   second definition of "good" and "bad" is how two screens end up
+   disagreeing about which colour a fall in cost is. */
+.home2-kpi-strip-delta {
+  font-size: 11.5px;
+  color: var(--text-3, #8e8ea0);
+  margin-top: 2px;
+}
+
+.home2-kpi-strip-delta strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 700;
+}
+
+.home2-kpi-strip-delta strong.tone-good { color: var(--green, #16a34a); }
+.home2-kpi-strip-delta strong.tone-bad  { color: var(--red, #dc2626); }
+
+/* The foot: one hairline, then the way to the rest of the figures. */
+.home2-kpi-strip-foot {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-light, #f0f0f5);
+  padding-top: 8px;
+}
+
+.home2-kpi-strip-viewall {
+  flex-shrink: 0;
+}
+
+/* Narrow: five equal columns stop being equal in any useful sense, so the
+   row wraps. */
+@media (max-width: 1280px) {
+  .home2-kpi-strip-row {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 14px;
+  }
+  /* The rule between columns belongs to a single row of them. */
+  .home2-kpi-strip-item + .home2-kpi-strip-item {
+    border-left: none;
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 860px) {
+  .home2-kpi-strip-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .home2-kpi-strip-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The Home 3D preview and its facility callout are gone with the markup
+   that carried them (`#home-map-twin`, `#home-twin-callout`) and with their
+   renderers in app.js. The scene itself is untouched — it is the Digital
+   Twin tab's, drawn by the same twin3d.js engine, one click away under
+   Baseline in the sidebar. */
+
+/* ═══════════════════════════════════════════════════════════════
+   OVERVIEW — reworked against Dump/home overview.png
+   ═══════════════════════════════════════════════════════════════
+
+   Reference: Dump/Home Overview-updated1.png
+
+   Five rows, in the order a reader needs them:
+
+     .ov-head          what page this is: title and strapline, on one line
+     .home2-kpi-strip  the network's five headline figures, and the way to
+                       the rest of them
+     .ov-insights-head + .ov-tiles
+                       the three findings that need a decision, side by side
+     .ov-data-strip    what the upload did not carry, and what would sharpen
+                       it — each with the request that fixes it
+     .ov-foot          when this was last analysed, and the re-run
+
+   The figures are FIRST. They were last, on the reasoning that findings
+   outrank figures; in use the first question a reader has on opening this
+   page is "is the network alright", and five figures answer it in a glance.
+   The findings are still the tallest thing on the screen.
+
+   The digital twin is not on this page any more. It took the right half of
+   the first screen to draw a network the sidebar opens in full, and it left
+   the findings a 500px column with an internal scroller — so the
+   recommendation a reader is meant to act on could sit below the bottom of
+   its own card. Three tiles show three findings with nothing hidden.
+
+   Scope (project, facility, period) is the top bar's, on every screen. This
+   page owns no selector of its own.
+
+   Sizes are the application's own: style.css sets html{font-size:14px},
+   .card-title 15px, .btn 13px, .tag 11px; home-overview.css uses 19-22px for
+   a card's own headline. Nothing here invents a scale.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* `#tab-home.active`, NOT `#tab-home`.
+   `.tab-panel { display: none }` is a class selector; an ID selector beats it
+   outright, so `#tab-home { display: flex }` made Home visible on every tab —
+   the Digital Twin page rendered its own header with the whole Overview laid
+   out underneath it. Qualifying on `.active` means the rule simply does not
+   match when Home is not the current tab, and `.tab-panel`'s `display: none`
+   applies unopposed. */
+#tab-home.active {
+  display: flex;
+  flex-direction: column;
+  /* At LEAST the window, and taller when the rows ask for it. `flex: 1`
+     (= `1 1 0%`) would pin the page to exactly one screen and make every row
+     compete with every other for it, which is the trade that cost the
+     findings their recommendation last time. */
+  flex: 1 0 auto;
+  /* 14px between rows; the tiles carry their own 16px gutter, so the page
+     reads as four bands rather than one field of cards. */
+  gap: 14px;
+  /* Room to scroll the last row out from under the fixed "Ask Netgravity"
+     button. This is what keeps the last row off it: at the bottom of the
+     scroll the page ends `--ng-fab-clearance` above the viewport's own
+     bottom edge, which is exactly the band the button occupies. Same
+     constant the rest of the application reserves for it (style.css).
+
+     The bands above no longer reserve anything HORIZONTALLY — that cost
+     about 280px of blank margin down every one of them to avoid an overlap
+     that only happens mid-scroll. */
+  padding-bottom: var(--ng-fab-clearance, 84px);
+}
+
+/* ─── row 0: page head ────────────────────────────────────────── */
+.ov-head {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+/* Title and strapline read as one line: "Overview · Your network health and
+   key actions at a glance." Baseline alignment, not centre — the two have
+   very different cap heights and centring them makes the smaller text look
+   like it is floating. */
+.ov-head-text {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.ov-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--text-1);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.ov-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* The separator belongs to the layout, not to the sentence, so it is drawn
+   rather than typed — a screen reader reads the two as two phrases. */
+.ov-head-text .ov-subtitle::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--border, #d9dde5);
+  margin-right: 10px;
+  vertical-align: middle;
+}
+
+
+/* Home's notice slot — the infeasible-network banner, and nothing else.
+
+   `hidden` has to win outright here: `renderOverviewAlert()` REPLACES this
+   element's class list with the alert's own, so `.ov-alert { display: flex }`
+   would otherwise show an empty box on every network that solved. The
+   attribute is the only thing left saying "not now". */
+#ov-notice[hidden] { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════════════
+   ROW 2 — key insights & recommendations
+   ═══════════════════════════════════════════════════════════════
+   Three tiles of equal width, each carrying the same four blocks in the
+   same order. The palette is the application's: `--primary` for anything
+   the reader can act on, `--red` / `--red-bg` for a risk, `--green` for an
+   opportunity, and the neutral text ramp for everything else. Nothing here
+   invents a colour or a size — style.css sets html{font-size:14px} and the
+   19-22px headline scale this file already used.
+   ═══════════════════════════════════════════════════════════════ */
+.ov-insights-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.ov-insights-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--text-1, #1a1a2e);
+  margin: 0;
+}
+
+.ov-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* One tile.
+   `display: flex` with the body on `flex: 1` is what keeps the three
+   "View detailed finding" links level with each other however different
+   the three findings' prose lengths are. Three links at three heights
+   read as three different kinds of control. */
+.ov-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 14px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-light, #f0f0f5);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  min-width: 0;
+}
+
+/* COLOUR IS CARRIED BY ONE TILE: the lead, and only when the lead is a risk
+   (`.is-lead` is set by insightTileHtml on the first tile alone).
+
+   A tint on all three would distinguish nothing, and a tint on every risk
+   would put two red cards beside one white one on a network with two — so a
+   reader scanning for the card to start with gets two answers, which is the
+   same as none. Every other tile still states its severity in its icon and
+   its eyebrow; nothing is hidden by not being red.
+
+   A green "opportunity" panel is deliberately absent too: beside a red
+   "unserved demand" it invites the reader to weigh the two against each
+   other as two sides of one choice, which they are not. */
+.ov-tile.tone-risk.is-lead {
+  background: var(--red-bg, #fef2f2);
+  border-color: #f6cfcf;
+}
+
+.ov-tile.tone-risk .ov-tile-icon { color: var(--red, #dc2626); }
+.ov-tile.tone-risk.is-lead .ov-tile-figure-value { color: var(--red, #dc2626); }
+.ov-tile.tone-opportunity .ov-tile-icon { color: var(--green, #16a34a); }
+.ov-tile.tone-information .ov-tile-icon { color: var(--primary, #6B2FA0); }
+
+.ov-tile-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ov-tile-icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--primary, #6B2FA0);
+}
+
+.ov-tile-icon svg { width: 17px; height: 17px; }
+
+/* The KIND of finding, not the finding. Small and quiet: it labels the
+   tile, and the conclusion below it is what the reader is here for. */
+.ov-tile-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-2, #5a5a72);
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The figure the finding turns on, at the size that says so. */
+.ov-tile-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.ov-tile-figure-value {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--text-1, #1a1a2e);
+}
+
+.ov-tile-figure-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2, #5a5a72);
+  min-width: 0;
+}
+
+/* THE HIGHLIGHT. First line of prose on the tile, and the only bold one:
+   the conclusion itself, in the engine's words. It is the tile's `<h3>`;
+   the eyebrow above it is a `<span>`, because a heading naming the category
+   would give a screen reader three labels and none of the findings. */
+.ov-tile-highlight {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.005em;
+  color: var(--text-1, #1a1a2e);
+}
+
+/* The finding explained. Sits between the headline and the figures, outside
+   the body's own `flex: 1` — the body stretches so the three tiles' calls to
+   action stay level, and prose that stretched with it would leave a gap
+   under a short sentence. */
+.ov-tile-description {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-2, #5a5a72);
+}
+
+.ov-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ov-tile-section { min-width: 0; }
+
+.ov-tile-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3, #8e8ea0);
+  margin-bottom: 4px;
+}
+
+.ov-tile-section-text {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-2, #5a5a72);
+}
+
+/* WHY IT MATTERS, IN FIGURES. The metric the finding cites and whatever it
+   was compared against, printed with the engine's own formatting — so the
+   number in the sentence above and the number in this list cannot drift.
+   A definition list because that is what it is: a term and its value. */
+/* A finding with nothing under its headline. Muted, and it says which of
+   the two blocks is missing rather than leaving the reader to wonder
+   whether the tile failed to load. */
+.ov-tile-bare {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-3, #8e8ea0);
+}
+
+.ov-tile-evidence {
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ov-tile-evidence-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid var(--border-light, #f0f0f5);
+}
+
+.ov-tile.tone-risk.is-lead .ov-tile-evidence-row { border-color: #f3d9d9; }
+
+.ov-tile-evidence-row dt {
+  color: var(--text-2, #5a5a72);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-tile-evidence-row dd {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text-1, #1a1a2e);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* RECOMMENDED ACTION. Boxed, so the one thing on the tile that asks the
+   reader to do something is not read as another paragraph about the
+   network. Auto top margin pins it to the bottom of the body, which is
+   what keeps the three tiles' CTAs on one line. */
+.ov-tile-action {
+  margin-top: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--purple-50, #f5f0fa);
+  border: 1px solid #ece1f7;
+}
+
+.ov-tile.tone-risk.is-lead .ov-tile-action {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: #f3d9d9;
+}
+
+.ov-tile-action .ov-tile-section-label { color: var(--primary, #6B2FA0); }
+
+.ov-tile-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding: 7px 13px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary, #6B2FA0);
+  color: var(--text-on-primary, #ffffff);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition, .2s ease);
+}
+
+.ov-tile-cta:hover { background: var(--primary-hover, #5a2787); }
+.ov-tile-cta:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* The way into the whole finding. A link, not a second filled button: one
+   primary action per tile, or neither reads as the primary one. */
+.ov-tile-detail {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border, #e8e8ef);
+  border-radius: 9px;
+  background: var(--bg-card, #ffffff);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--primary, #6B2FA0);
+  cursor: pointer;
+  transition: background var(--transition, .2s ease), border-color var(--transition, .2s ease);
+}
+
+.ov-tile-detail:hover {
+  background: var(--purple-50, #f5f0fa);
+  border-color: var(--purple-200, #d4bfe8);
+}
+
+.ov-tile-detail:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.ov-tiles-empty {
+  grid-column: 1 / -1;
+  padding: 26px 22px;
+  background: var(--bg-card, #ffffff);
+  border: 1px dashed var(--border, #e8e8ef);
+  border-radius: 14px;
+  text-align: center;
+  color: var(--text-2, #5a5a72);
+  font-size: 13px;
+}
+
+.ov-tiles-empty p { margin: 0; }
+.ov-tiles-empty .ov-tiles-empty-sub {
+  margin-top: 5px;
+  font-size: 12.5px;
+  color: var(--text-3, #8e8ea0);
+}
+
+/* Three columns, then one. Two is the only arrangement that leaves a hole:
+   three tiles in two columns is a row of two and a row of one, with an empty
+   cell beside the third. Below the width three of them can hold a sentence,
+   they stack. */
+@media (max-width: 1180px) {
+  .ov-tiles { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ROW 3 — what the analysis did not have
+   ═══════════════════════════════════════════════════════════════
+   Two cards, and they must not read as one thing: a REQUIRED field is why
+   some figure above is a dash, and an OPTIONAL one only costs precision.
+   Red for the first, amber for the second — the same two tones the rest of
+   the application uses for "wrong" and "worth knowing".
+
+   NO HORIZONTAL RESERVE. These bands used to keep `--ov-fab-reserve` clear
+   on their right for the fixed "Ask Netgravity" bubble, which on a 1680px
+   window is about 280px — a permanent blank margin down every band, to avoid
+   an overlap that only ever happens mid-scroll. `#tab-home.active` reserves
+   `--ng-fab-clearance` at the FOOT of the page instead, so nothing comes to
+   REST under the button, and the bands take the width they were given.
+   ═══════════════════════════════════════════════════════════════ */
+/* ONE BAND PER GROUP, EACH THE FULL WIDTH OF THE PAGE.
+
+   These were two columns. Two columns are only ever the same height by
+   accident: on a real upload with two required fields and three optional
+   ones the left card ended in a block of empty red tint, and the taller the
+   lists got the wider that block became. A band ends where its own last
+   request ends, so there is nothing left over to fill. */
+.ov-data-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ov-data-strip.is-empty { display: none; }
+
+.ov-data-card {
+  padding: 14px 16px 13px;
+  border-radius: 14px;
+  border: 1px solid var(--border-light, #f0f0f5);
+  background: var(--bg-card, #ffffff);
+  min-width: 0;
+}
+
+.ov-data-card.tone-required {
+  background: var(--red-bg, #fef2f2);
+  border-color: #f6cfcf;
+}
+
+.ov-data-card.tone-optional {
+  background: var(--amber-bg, #fffbeb);
+  border-color: #f5e3bd;
+}
+
+.ov-data-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.ov-data-card-icon { display: flex; flex-shrink: 0; margin-top: 1px; }
+.ov-data-card-icon svg { width: 17px; height: 17px; }
+.ov-data-card.tone-required .ov-data-card-icon { color: var(--red, #dc2626); }
+.ov-data-card.tone-optional .ov-data-card-icon { color: var(--amber, #d97706); }
+
+.ov-data-card-headtext { min-width: 0; }
+
+.ov-data-card-title {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-1, #1a1a2e);
+  line-height: 1.35;
+}
+
+/* How many, in the heading. It replaces a "+3 more" link at the foot: the
+   count tells a reader the size of the job before they start reading it,
+   and the link told them there was more only after they had finished. */
+.ov-data-card-count {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  color: var(--text-2, #5a5a72);
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-data-card-blurb {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2, #5a5a72);
+}
+
+.ov-data-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* A row is the width of the band, and its button sits on a rail at the right
+   edge — so with four requests open the four buttons form one column a
+   reader can run down, rather than four ragged ends. */
+.ov-data-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  min-width: 0;
+}
+
+/* The subtitle is a sentence, not a label: at full width it has room to be
+   read on one line, and the row stays one line tall for it. */
+/* Title and sentence on ONE line. Stacked, every request was two lines tall
+   and a band of four was eight; across the full width of the page there is
+   room for the name and its reason side by side, and the row wraps to two
+   lines only when there genuinely is not. */
+.ov-data-item-text {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.ov-data-item-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-1, #1a1a2e);
+  line-height: 1.35;
+}
+
+.ov-data-item-sub {
+  font-size: 11.5px;
+  color: var(--text-2, #5a5a72);
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.ov-data-item-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 6px 11px;
+  border: 1px solid var(--purple-200, #d4bfe8);
+  border-radius: 8px;
+  background: var(--bg-card, #ffffff);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary, #6B2FA0);
+  cursor: pointer;
+  transition: background var(--transition, .2s ease);
+}
+
+.ov-data-item-cta:hover { background: var(--purple-50, #f5f0fa); }
+.ov-data-item-cta:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* GONE: `.ov-data-more`, the "+3 more optional fields" link. Every request
+   is listed now, so there is no remainder to link to. */
+
+/* Nothing outstanding, said once and quietly. It is only shown when the
+   completeness gate has actually run — see renderHomeDataStrip(). */
+.ov-data-clear {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 16px;
+  border-radius: 12px;
+  background: var(--green-bg, #f0fdf4);
+  border: 1px solid #cdebd8;
+  font-size: 12.5px;
+  color: #15803d;
+}
+
+.ov-data-clear-icon { display: flex; flex-shrink: 0; }
+.ov-data-clear-icon svg { width: 16px; height: 16px; }
+
+/* ─── row 4: when this was last analysed ─────────────────────────
+   Nielsen #1. Every figure on the page is as old as this line says, and
+   the button beside it is how a reader makes it newer. */
+.ov-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 2px 4px;
+  padding-right: calc(2px + var(--ov-fab-reserve, 0px));
+}
+
+/* ─── The alert and the attention card: the FORECAST page's now ────
+   Both were Home's. Home shows three insight tiles instead — same findings,
+   same ranking, with the recommendation on screen rather than behind an
+   internal scroller — and `renderOverviewAlert` / `renderHomeAttentionFeed`
+   draw into `#fc-alert` and `#fc-attn-body` on Forecast. The rules stay
+   exactly as they were, because that page is unchanged. */
+
+/* ─── the alert, now a card of its own ────────────────────────────
+   It used to share one bordered band with three KPI tiles. The tiles are
+   gone (they sat on top of the twin and were the reason the twin only got
+   the bottom half of the page), so the alert carries its own chrome and
+   the twin takes the height they were using. */
+/* Deliberately compact.
+   Whatever this card takes, the attention card beside it does not get: they
+   are the two rows of one column with a fixed total. Every pixel trimmed here
+   is a pixel the recommended next step and the further findings gain, and
+   those are the parts a reader acts on. Nothing is removed — the figure is
+   still the biggest thing on the card. */
+.ov-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 15px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-light, #eceef2);
+  border-radius: 14px;
+  min-width: 0;
+}
+
+.ov-alert.tone-warn  { background: #fff7f4; }
+.ov-alert.tone-error { background: #fef4f4; }
+.ov-alert.tone-ok    { background: #f4fbf7; }
+
+.ov-alert-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.ov-alert-icon svg { width: 26px; height: 26px; }
+.ov-alert.tone-warn  .ov-alert-icon { color: #dc2626; }
+.ov-alert.tone-error .ov-alert-icon { color: #b91c1c; }
+.ov-alert.tone-ok    .ov-alert-icon { color: #157f3c; }
+
+.ov-alert-text { min-width: 0; }
+
+.ov-alert-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1.35;
+}
+
+/* The figure a reader came for, at the size that says so. */
+.ov-alert-figure {
+  margin-top: 2px;
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: #dc2626;
+}
+
+.ov-alert-figure span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0;
+  margin-left: 4px;
+}
+
+.ov-alert-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.ov-alert-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.ov-alert-link:hover { text-decoration: underline; }
+.ov-alert-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* The Overview's `.ov-main` grid is GONE, and with it `--ov-main-top` and
+   `--ov-strip-h`.
+
+   It was a two-column, two-row grid pinned to exactly one screen: the alert
+   and the attention card down the left, the digital twin spanning both rows
+   on the right. Home does not have that shape any more — the twin is not on
+   this page, and the four rows that replaced it flow rather than fill. A page
+   that flows needs no measured height, so nothing writes those variables now
+   and `sizeOverviewToWindow()` clears any a cached stylesheet left behind.
+
+   The rules below are still LIVE: the Forecast page draws the same alert and
+   the same attention card into `#fc-alert` and `#fc-attn-body`, inside its own
+   `.fc-main` grid. */
+
+.ov-attn-card,
+.ov-signals-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-light, #eceef2);
+  border-radius: 14px;
+  min-width: 0;
+}
+
+.ov-attn-card {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 0;
+}
+
+.ov-attn-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.ov-attn-star { display: flex; color: var(--primary); }
+.ov-attn-star svg { width: 19px; height: 19px; }
+
+.ov-attn-title,
+.ov-signals-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+  margin: 0;
+}
+
+/* The body scrolls, the footer does not: the status row and the timestamp are
+   how a reader knows the figures above are current, and they used to be pushed
+   off the bottom by a feed that had no height limit of its own. */
+.ov-attn-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+
+.ov-attn-section + .ov-attn-section { margin-top: 12px; }
+
+.ov-attn-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.ov-attn-section-label.tone-why    { color: var(--primary); }
+.ov-attn-section-label.tone-impact { color: #a8710c; }
+.ov-attn-section-label.tone-next   { color: var(--primary); }
+
+.ov-attn-section-text {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.ov-attn-section-text strong { color: var(--text-1); font-weight: 700; }
+
+/* The lead finding's "view the full finding" link is gone with the feed it
+   led. What the Forecast page still uses of this vocabulary is everything
+   above and `.ov-attn-next` below — the section labels, the section text and
+   the recommended-next-step row. */
+
+.ov-attn-next {
+  display: flex;
+  gap: 11px;
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 11px;
+  background: #faf7fe;
+  border: 1px solid #ece2fa;
+}
+
+.ov-attn-next-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #f1e9fb;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.ov-attn-next-icon svg { width: 17px; height: 17px; }
+.ov-attn-next-text { min-width: 0; }
+
+.ov-attn-next-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+/* GONE WITH THE FEED: `.ov-attn-next-limit`, `.ov-attn-cta` and the whole
+   `.ov-attn-rest*` family — the grounding caveat, the card's call to action
+   and the collapsed "3 further findings" list.
+
+   Nothing draws them. The Overview's findings are tiles, each with its own
+   call to action; the ones that do not fit are the Insights page rather than
+   a `<details>` inside a card; and the grounding caveat is on that page's
+   recommendation, as `.insp-rec-limit`. The Forecast page's own card uses
+   the section and next-step rules above and none of these. */
+
+.ov-attn-empty {
+  padding: 24px 4px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+.ov-attn-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 11px 0 13px;
+  border-top: 1px solid var(--border-light, #eceef2);
+  flex-shrink: 0;
+}
+
+.ov-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #e6f6ee;
+  color: #157f3c;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.ov-status-pill svg { width: 13px; height: 13px; }
+
+.ov-refresh-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.ov-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.ov-refresh-btn svg { width: 13px; height: 13px; }
+.ov-refresh-btn:hover { background: #f3f0f8; color: var(--primary); }
+.ov-refresh-btn.spinning svg { animation: ovSpin 0.9s linear infinite; }
+
+@keyframes ovSpin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ov-refresh-btn.spinning svg { animation: none; }
+}
+
+/* ─── row 3: signals ──────────────────────────────────────────── */
+.ov-signals-card {
+  padding: 14px 18px 15px;
+  /* Clearance for the fixed "Ask Netgravity" button, which is bottom-right
+     and was sitting on top of the third signal card's chip. */
+  padding-right: 18px;
+}
+
+.ov-signals-row > .ov-signal:last-child { padding-right: 14px; }
+
+/* Below this the FAB and the last card genuinely collide, so the row gives it
+   a lane rather than overlapping. */
+@media (max-width: 1500px) {
+  .ov-signals-card { padding-bottom: 26px; }
+}
+
+.ov-signals-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ov-signals-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ov-signal {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light, #eceef2);
+  border-radius: 11px;
+  min-width: 0;
+}
+
+.ov-signal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #f5f1fc;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.ov-signal-icon svg { width: 19px; height: 19px; }
+.ov-signal-text { min-width: 0; }
+
+.ov-signal-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ov-signal-meta {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.ov-signal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ov-signal-chip svg { width: 12px; height: 12px; }
+.ov-signal-chip.tone-ok      { background: #e6f6ee; color: #157f3c; }
+.ov-signal-chip.tone-info    { background: #fdf3e2; color: #a8710c; }
+.ov-signal-chip.tone-pending { background: #f1f2f5; color: #64748b; }
+
+.ov-signals-empty {
+  grid-column: 1 / -1;
+  padding: 18px 4px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+/* ─── responsive ──────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  /* Nothing on the Overview to stack any more — its grid is gone. What is
+     left is the attention card the FORECAST page draws, whose internal
+     scroller is wrong once the page itself is scrolling. */
+  .ov-attn-body { overflow-y: visible; }
+}
+
+@media (max-width: 900px) {
+  .ov-signals-row { grid-template-columns: minmax(0, 1fr); }
+  .ov-head { gap: 8px; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   INSIGHTS PAGE — Baseline > Insights
+   ═══════════════════════════════════════════════════════════════
+   What "View more insights" opens, and what the sidebar entry points at.
+   Home shows three tiles; this is all of them, plus every outstanding data
+   request, filterable and each row opening the same deep dive.
+
+   No purple gradient here. That backdrop belongs to Home — it is the one
+   page that is a cockpit rather than a document — and this screen wears the
+   same neutral page ground as the KPIs and the Digital Twin, so a reader
+   moving between the three Baseline views is not told they have left the
+   product (Nielsen #4).
+   ═══════════════════════════════════════════════════════════════ */
+#tab-insights.active {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* The network-level recommendation, at the head of the list.
+
+   It reads as a statement rather than as a row: no left severity bar, no
+   hover, no "view detailed finding". It is not a finding — it is what the
+   engine concludes from all of them, and a reader must not have to click it
+   to find out that there is nothing behind it. */
+.insp-rec {
+  padding: 16px 20px 15px;
+  border-radius: 14px;
+  background: var(--purple-50, #f5f0fa);
+  border: 1px solid #ece1f7;
+}
+
+.insp-rec[hidden] { display: none !important; }
+
+.insp-rec-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+
+.insp-rec-icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--primary, #6B2FA0);
+  margin-top: 1px;
+}
+
+.insp-rec-icon svg { width: 18px; height: 18px; }
+
+.insp-rec-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary, #6B2FA0);
+}
+
+.insp-rec-headline {
+  margin: 3px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-1, #1a1a2e);
+}
+
+.insp-rec-text {
+  margin: 9px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2, #5a5a72);
+}
+
+/* The grounding caveat. Quieter than the recommendation, and never hidden:
+   a reader who cannot see that the figures behind a sentence were not
+   verified has been told only half of it. */
+.insp-rec-limit {
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-3, #8e8ea0);
+}
+
+/* The concrete change the solved plans point to, under the advice that
+   ranks them. Boxed against the recommendation's own tint, because "close
+   this, open that" is a different kind of statement from "test this next". */
+.insp-rec-change {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid #ece1f7;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-2, #5a5a72);
+}
+
+.insp-rec-change strong { color: var(--text-1, #1a1a2e); font-weight: 700; }
+.insp-rec-change .twin-change-what { font-weight: 700; color: var(--primary, #6B2FA0); }
+
+.insp-rec-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary, #6B2FA0);
+  color: var(--text-on-primary, #ffffff);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition, .2s ease);
+}
+
+.insp-rec-cta:hover { background: var(--primary-hover, #5a2787); }
+.insp-rec-cta:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* The bands, with their own counts. A reader can see there are two risks
+   without first selecting "Risks" and counting the rows (Nielsen #6), and a
+   band with nothing in it is disabled rather than removed — a control that
+   comes and goes between renders is one nobody can learn. */
+.insp-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.insp-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--border, #e8e8ef);
+  border-radius: 999px;
+  background: var(--bg-card, #ffffff);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2, #5a5a72);
+  cursor: pointer;
+  transition: background var(--transition, .2s ease), border-color var(--transition, .2s ease);
+}
+
+.insp-filter:hover:not(:disabled) {
+  border-color: var(--purple-200, #d4bfe8);
+  background: var(--purple-50, #f5f0fa);
+}
+
+.insp-filter.is-active {
+  background: var(--primary, #6B2FA0);
+  border-color: var(--primary, #6B2FA0);
+  color: var(--text-on-primary, #ffffff);
+  font-weight: 700;
+}
+
+.insp-filter:disabled { opacity: 0.45; cursor: default; }
+.insp-filter:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.insp-filter-count {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-hover, #f3f0f8);
+  color: var(--text-2, #5a5a72);
+  font-variant-numeric: tabular-nums;
+}
+
+.insp-filter.is-active .insp-filter-count {
+  background: rgba(255, 255, 255, 0.22);
+  color: var(--text-on-primary, #ffffff);
+}
+
+.insp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* One finding, or one data request. The whole row opens it, because unlike a
+   tile there is only one destination on it. */
+/* ═══════════════════════════════════════════════════════════════
+   ONE FINDING, ACROSS THE ROW
+   ═══════════════════════════════════════════════════════════════
+   This was a flex row of two columns — everything on the left, the figure and
+   the link on the right — with the recommended action STACKED under the
+   title inside the left column. Three consequences, measured on the six
+   findings a solved Case-16 network produces:
+
+     * every row was 157px tall and they were all identical, so the list read
+       as six of the same thing rather than six different findings;
+     * the action sat in a tinted box the full width of the left column —
+       about 1,180px — holding one sentence of roughly 700px. The rest was
+       empty tint, on every row;
+     * the figure and the link were pinned to the top right, leaving the
+       bottom right of each card blank.
+
+   Three columns now: the finding, what to do about it, and the figures it
+   turns on. Each takes the width its content needs, the row is as tall as
+   the tallest of the three rather than the sum of two of them, and nothing
+   is stretched across a width it cannot fill.
+   ═══════════════════════════════════════════════════════════════ */
+
+.insp-row {
+  display: grid;
+  /* STATED tracks, not `auto`.
+     Each row is its own grid, so an `auto` column sizes to that row's own
+     content: a row showing "₹150,627.70" and one showing "1.000" got
+     different widths, and the action boxes beside them started at different
+     x. A column of boxes with a ragged left edge is what "the alignment is
+     not correct" looks like. Fixed ends make every row identical. */
+  grid-template-columns: 20px minmax(0, 1fr) minmax(0, 0.86fr) 168px;
+  align-items: center;
+  gap: 14px;
+  /* SHORTER, because there is less in it. The narrative paragraph came out of
+     the row — it is the first thing on the detail page, which is where a
+     reader who wants the analysis is going. What is left is a decision list:
+     what the finding is, what it measured, what to do, and the way in. */
+  padding: 10px 14px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-light, #f0f0f5);
+  border-left: 3px solid var(--border, #e8e8ef);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color var(--transition, .2s ease), box-shadow var(--transition, .2s ease);
+  min-width: 0;
+}
+
+.insp-row:hover {
+  border-color: var(--purple-200, #d4bfe8);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, .06));
+}
+
+.insp-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* The severity, on the left edge and on the icon — the same vocabulary the
+   tiles use, so a reader arriving from Home reads the list without
+   re-learning it. */
+.insp-row.tone-risk        { border-left-color: var(--red, #dc2626); }
+.insp-row.tone-opportunity { border-left-color: var(--green, #16a34a); }
+.insp-row.tone-information { border-left-color: var(--purple-300, #b893d6); }
+
+/* THE RISK IS TINTED, like the lead tile on the Overview.
+   A left border three pixels wide is the difference between "read this first"
+   and "read this eventually", and it is the same three pixels every other row
+   carries. The tint is the same `--red-bg` the Overview's lead tile uses, so
+   the finding looks the same on both screens. */
+.insp-row.tone-risk {
+  background: var(--red-bg, #fef2f2);
+  border-color: #f6cfcf;
+  border-left-color: var(--red, #dc2626);
+}
+
+.insp-row.tone-risk:hover { border-color: #eab8b8; }
+
+.insp-row-icon { display: flex; flex-shrink: 0; align-self: center; }
+.insp-row-icon svg { width: 18px; height: 18px; }
+.insp-row.tone-risk .insp-row-icon        { color: var(--red, #dc2626); }
+.insp-row.tone-opportunity .insp-row-icon { color: var(--green, #16a34a); }
+.insp-row.tone-information .insp-row-icon { color: var(--primary, #6B2FA0); }
+
+.insp-row-main { min-width: 0; }
+
+.insp-row-eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3, #8e8ea0);
+}
+
+.insp-row-title {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.38;
+  color: var(--text-1, #1a1a2e);
+}
+
+/* Its own column, so the tint ends where the sentence ends. */
+.insp-row-action {
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--purple-50, #f5f0fa);
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* A risk's action sits on a tinted card, so its own tint has to separate
+   from it rather than blend in. */
+.insp-row.tone-risk .insp-row-action {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+/* A finding with no recommended step keeps the column, so the figures stay
+   in the same place on every row and the list reads as a table. */
+.insp-row-action.is-empty { background: transparent; }
+
+.insp-row-action-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--primary, #6B2FA0);
+  margin-bottom: 3px;
+}
+
+.insp-row-action-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2, #5a5a72);
+}
+
+/* THE RECOMMENDATION, PRICED — a control inside a row that is itself a
+   control. It has to read as the more specific of the two, so it is a solid
+   affordance where the row is a surface, and it stops the row's own click. */
+.insp-row-test {
+  align-self: flex-start;
+  margin-top: 7px;
+  padding: 4px 9px;
+  border: 1px solid var(--primary, #6B2FA0);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--primary, #6B2FA0);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition, .2s ease), color var(--transition, .2s ease);
+}
+
+.insp-row-test:hover {
+  background: var(--primary, #6B2FA0);
+  color: #ffffff;
+}
+
+.insp-row-test:focus-visible {
+  outline: 2px solid var(--primary, #6B2FA0);
+  outline-offset: 2px;
+}
+
+.insp-row-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 9px;
+  min-width: 0;
+  text-align: right;
+}
+
+.insp-row-figure { min-width: 0; }
+
+.insp-row-figure-value {
+  display: block;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--text-1, #1a1a2e);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.insp-row-figure-label {
+  display: block;
+  font-size: 10.5px;
+  color: var(--text-3, #8e8ea0);
+  margin-top: 1px;
+  line-height: 1.3;
+}
+
+.insp-row-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary, #6B2FA0);
+  white-space: nowrap;
+}
+
+.insp-row:hover .insp-row-link { text-decoration: underline; }
+
+/* Narrower windows: the action drops under the finding, and the figures keep
+   their own column beside both. */
+@media (max-width: 1320px) {
+  .insp-row {
+    grid-template-columns: 20px minmax(0, 1fr) 176px;
+  }
+  .insp-row-action {
+    grid-column: 2 / 3;
+    align-self: start;
+  }
+  .insp-row-right { grid-row: 1 / 3; grid-column: 3 / 4; align-self: center; }
+}
+
+.insp-empty {
+  padding: 30px 22px;
+  background: var(--bg-card, #ffffff);
+  border: 1px dashed var(--border, #e8e8ef);
+  border-radius: 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-2, #5a5a72);
+}
+
+/* One column on a phone-width window: the grid collapses and every part of
+   the finding takes the full width in reading order. */
+@media (max-width: 780px) {
+  .insp-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  .insp-row-icon { display: none; }
+  .insp-row-action { grid-column: 1 / -1; }
+  .insp-row-right {
+    grid-row: auto;
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    text-align: left;
+  }
+}
+
+.ov-data-item-sent.is-sent {
+  background: var(--green-bg, #dcfce7);
+  color: var(--green, #15803d);
+}
+
+.ov-data-item-sent.is-failed {
+  background: var(--red-bg, #fee2e2);
+  color: var(--red, #dc2626);
+}
+
+/* Both ways to answer the request, side by side and on one rail. */
+.ov-data-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* The quieter of the two. Same size and the same hit area — it is quieter,
+   not smaller, because on most uploads it is the one that gets pressed. */
+.ov-data-item-cta.is-quiet {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: transparent;
+  color: var(--text-2, #5a5a72);
+}
+
+.ov-data-item-cta.is-quiet:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-1, #1a1a2e);
+}

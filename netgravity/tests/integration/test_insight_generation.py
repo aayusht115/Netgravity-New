@@ -1,0 +1,693 @@
+"""
+Insights: whether the engine says anything about a network, and whether it is true.
+
+The reported symptom was "insights are not visible for the uploaded dataset".
+There were two causes, and only one of them was the wiring.
+
+**Nothing fetched them.** `HOME_INSIGHTS` and `HOME_ACTION_ITEMS` were
+initialised empty, read by the Home feed and the deep dive, and written by
+nothing — so the feed rendered "No insights have been generated for this network
+yet" permanently. `/api/insights` and its client now close that, and the browser
+harness covers it.
+
+**And there was almost nothing to fetch.** The deterministic template emitted a
+`KPIInsight` for exactly two themes, Cost and Scenario impact, so a solved
+baseline network produced ONE insight — "I see the current cost position
+clearly" — whatever the network said. An overloaded DC, a missed SLA and
+stranded demand all reached the reader as one cost card. The evidence for all of
+them was already in the payload and already narrated in prose; nothing was being
+made of it.
+
+This module tests the second half: that the themes exist, that each appears only
+when its evidence does, that severity is stated by the engine rather than
+guessed from wording, and that every figure quoted survives numeric grounding.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from netgravity.orchestrator.agents.reasoning_agent import ReasoningAgent
+from netgravity.orchestrator.reasoning.evidence import twin_reasoning_payload
+from netgravity.orchestrator.registry import build_orchestrator
+from netgravity.orchestrator.schemas.reasoning import (
+    InsightSeverity,
+    ReasoningScope,
+)
+from netgravity.orchestrator.schemas.requests import (
+    Actor,
+    ActorRole,
+    Intent,
+    OrchestratorRequest,
+)
+from netgravity.tests.fixtures.case16_synthetic import build_case16_network
+
+
+@pytest.fixture(scope="module")
+def solved():
+    """A real solved network and its Digital Twin state."""
+    orc = build_orchestrator()
+    snapshot = orc.snapshots.register(build_case16_network(), label="insights")
+    orc.run_sync(OrchestratorRequest(
+        input="baseline", explicit_intent=Intent.NETWORK_STATE_QUERY,
+        actor=Actor(actor_id="u", role=ActorRole.PLANNER),
+        network_snapshot_id=snapshot.snapshot_id, disable_llm=True))
+    refs = orc.twin.list_states(snapshot.snapshot_id)
+    assert refs, "the baseline workflow must publish a twin state"
+    return orc, orc.twin.materialize(refs[-1].state_id)
+
+
+def briefing_for(orc, state, scope=ReasoningScope.NETWORK, entity_id=None):
+    payload = twin_reasoning_payload(state, scope=scope, entity_id=entity_id,
+                                     comparison=None)
+    return orc.services["reasoning_agent"].reason(
+        payload, unavailable_evidence={},
+        provenance={"state_id": state.state_id}, allow_llm=False,
+        scope=scope, entity_id=entity_id, user_question="")
+
+
+def bare_agent() -> ReasoningAgent:
+    """An agent with no gateway, for exercising one theme at a time."""
+    return ReasoningAgent(gateway=None, runtime=None)
+
+
+def no_refs(_field):
+    return []
+
+
+# ===========================================================================
+
+class TestASolvedNetworkProducesMoreThanACostCard:
+
+    def test_several_themes_are_reported(self, solved):
+        orc, state = solved
+        result = briefing_for(orc, state)
+        themes = [i.theme for i in result.briefing.kpi_insights]
+        assert len(themes) >= 4, f"only produced {themes}"
+        assert "Cost" in themes
+        assert len(set(themes)) == len(themes), f"themes repeat: {themes}"
+
+    def test_every_quoted_figure_is_grounded(self, solved):
+        """
+        Each insight states values taken from the evidence pack, so the numeric
+        grounding check must pass by construction rather than by luck.
+        """
+        orc, state = solved
+        result = briefing_for(orc, state)
+        assert result.grounding_status in {"GROUNDED", "NO_CLAIMS"}, \
+            result.validation_warnings
+        assert result.validation_warnings == []
+
+    def test_a_cited_threshold_is_not_read_as_a_measurement(self, solved):
+        """
+        "No open site reaches the 90% threshold" was adjudicated CONTRADICTED
+        against `pct_demand_in_sla = 100` — a percentage measured on something
+        else entirely — and the 90 was stripped out mid-sentence. A threshold is
+        a fact about the configuration, and it now travels with the evidence.
+        """
+        orc, state = solved
+        result = briefing_for(orc, state)
+        text = " ".join(i.narrative for i in result.briefing.kpi_insights)
+        assert "UNGROUNDED CLAIM REMOVED" not in text
+
+    def test_a_threshold_grounds_wherever_the_payload_came_from(self):
+        """
+        The thresholds must travel with EVERY payload, not just the twin's.
+
+        They were added to `twin_reasoning_payload` alone, so the orchestrator's
+        own payload for `reasoning.synthesise` — the one a scenario comparison
+        uses — quoted a threshold it could not ground. Four contradicted claims
+        on a real client network, on the path a planner uses most.
+        """
+        from netgravity.orchestrator.reasoning.evidence import with_policy_thresholds
+
+        payload = {"network_state": {"business_network_cost": 1000.0,
+                                     "avg_utilization_pct": 40.0,
+                                     "max_utilization_pct": 55.0},
+                   "facilities": []}
+        result = bare_agent().reason(payload, allow_llm=False)
+        assert result.grounding_status in {"GROUNDED", "NO_CLAIMS"}, \
+            result.validation_warnings
+        assert with_policy_thresholds({})["thresholds"]["utilization_over_pct"] == 90.0
+
+    def test_a_threshold_is_citable_but_never_contradicts_a_measurement(self):
+        """
+        A configured threshold is a percentage, so once it became citable a
+        fabricated "cost increases by 12%" was reported as CONTRADICTED by
+        `utilization_under_pct = 30` — a threshold about something else. That
+        verdict tells a reader nothing and destroys the distinction the
+        validator is careful about: CONTRADICTED means a real measurement was
+        misreported, UNSUPPORTED means a figure was invented.
+        """
+        from netgravity.orchestrator.reasoning.evidence import with_policy_thresholds
+        from netgravity.orchestrator.validation.numeric_grounding import (
+            build_authoritative_facts, extract_numeric_claims, ground_claims,
+        )
+
+        facts = build_authoritative_facts(
+            with_policy_thresholds({"rei": {"max_rei": 1.0}}))
+
+        invented = ground_claims(extract_numeric_claims("Cost increases by 12%."), facts)
+        verdicts = {c.verdict.value for c in invented.claims}
+        assert "UNSUPPORTED" in verdicts, verdicts
+        assert "CONTRADICTED" not in verdicts, \
+            "a threshold must not stand in for a measurement"
+
+        quoted = ground_claims(
+            extract_numeric_claims("No site reaches the 90% threshold."), facts)
+        assert all(c.verdict.value in {"GROUNDED", "IGNORED"}
+                   for c in quoted.claims), \
+            "a narrative must still be able to name the line it is drawing"
+
+    def test_a_cost_reducing_scenario_grounds(self):
+        """
+        The magnitude of a signed fact.
+
+        The narrative states a direction in words and a quantity in digits —
+        "the scenario DECREASES business cost by 8,506,746.48" — while the fact
+        holds −8,506,746.48. The two did not match, so the nearest same-kind
+        currency fact was picked and the claim reported as CONTRADICTED. That
+        happened on EVERY cost-reducing scenario: the briefing was marked
+        GROUNDING_FAILED, its confidence dropped to LOW, and the figure was
+        stripped out of the sentence — for the outcome a planner is looking for.
+        """
+        payload = {
+            "network_state": {"business_network_cost": 18067793.96},
+            "scenario": {"business_cost_delta": -8506746.48,
+                         "business_cost_delta_pct": -47.08,
+                         "cost_components": {"facility_cost": 8411800.0}},
+        }
+        result = bare_agent().reason(payload, allow_llm=False)
+        assert result.grounding_status == "GROUNDED", result.validation_warnings
+        assert "8,506,746" in result.summary, \
+            "the figure must survive, not be stripped as ungrounded"
+        assert "decreases" in result.summary
+        assert result.confidence != "LOW"
+
+    def test_a_wrong_magnitude_is_still_caught(self):
+        """Accepting a magnitude must not accept the wrong magnitude."""
+        from netgravity.orchestrator.validation.numeric_grounding import (
+            build_authoritative_facts, extract_numeric_claims, ground_claims,
+        )
+        facts = build_authoritative_facts(
+            {"scenario": {"business_cost_delta": -8506746.48}})
+        report = ground_claims(
+            extract_numeric_claims("Cost decreases by 9,000,000.00."), facts)
+        assert report.status == "GROUNDING_FAILED"
+        assert any(c.verdict.value == "CONTRADICTED" for c in report.claims)
+
+    def test_a_facility_scope_speaks_about_that_facility(self, solved):
+        orc, state = solved
+        facility_id = state.facilities[0].facility_id
+        result = briefing_for(orc, state, ReasoningScope.FACILITY, facility_id)
+        capacity = [i for i in result.briefing.kpi_insights if i.theme == "Capacity"]
+        assert capacity, "a facility view must say something about that facility"
+        name = state.facilities[0].facility_name or facility_id
+        assert name in capacity[0].headline or name in capacity[0].narrative
+        assert result.grounding_status in {"GROUNDED", "NO_CLAIMS"}
+
+
+class TestSeverityIsStatedByTheEngine:
+
+    def test_unserved_demand_is_a_risk(self):
+        agent = bare_agent()
+        state = {"total_demand": 1000.0, "unserved_demand": 200.0,
+                 "demand_fill_rate": 0.8}
+        insights = agent._service_insights(state, no_refs)
+        assert insights[0].severity is InsightSeverity.RISK
+
+    def test_demand_fully_served_is_information_not_a_risk(self):
+        agent = bare_agent()
+        insights = agent._service_insights(
+            {"total_demand": 100.0, "unserved_demand": 0.0,
+             "demand_fill_rate": 1.0}, no_refs)
+        assert insights[0].severity is InsightSeverity.INFORMATION
+
+    def test_an_sla_miss_is_a_risk_even_when_everything_is_served(self):
+        agent = bare_agent()
+        insights = agent._service_insights(
+            {"demand_fill_rate": 1.0, "pct_demand_in_sla": 82.5}, no_refs)
+        risks = [i for i in insights if i.severity is InsightSeverity.RISK]
+        assert risks, "served late is still a service finding"
+        # Whole percent: see `strategic_actions.format_pct`. The exact figure
+        # stays on the evidence row beside the card; the sentence is read at a
+        # glance and "82.50%" is two digits of noise in it.
+        assert "82%" in risks[0].narrative
+
+    def test_an_overloaded_site_is_a_risk_and_an_idle_one_an_opportunity(self):
+        agent = bare_agent()
+        payload = {"facilities": [
+            {"facility_id": "D1", "facility_name": "DC One", "is_open": True,
+             "utilization_pct": 97.0},
+            {"facility_id": "D2", "facility_name": "DC Two", "is_open": True,
+             "utilization_pct": 12.0},
+            {"facility_id": "D3", "facility_name": "DC Three", "is_open": True,
+             "utilization_pct": 8.0},
+        ]}
+        insights = agent._utilization_insights(
+            {"avg_utilization_pct": 39.0, "max_utilization_pct": 97.0},
+            payload, no_refs)
+        by_theme = {i.theme: i for i in insights}
+        assert by_theme["Capacity"].severity is InsightSeverity.RISK
+        assert "DC One" in by_theme["Capacity"].narrative
+        assert by_theme["Utilisation"].severity is InsightSeverity.OPPORTUNITY
+        assert "DC Two" in by_theme["Utilisation"].narrative
+
+
+class TestAnAbsentMetricProducesNoInsight:
+    """
+    The rule that keeps this from becoming a filler generator: no metric, no
+    insight. Never a zero, never a hedge, and never a sentence built round a
+    number nobody measured.
+    """
+
+    def test_no_service_metric_yields_no_service_insight(self):
+        assert bare_agent()._service_insights({}, no_refs) == []
+
+    def test_no_utilization_yields_no_capacity_insight(self):
+        assert bare_agent()._utilization_insights({}, {"facilities": []}, no_refs) == []
+
+    def test_a_single_cost_component_is_not_a_cost_structure(self):
+        """Naming the largest of one line says nothing."""
+        agent = bare_agent()
+        assert agent._cost_structure_insights(
+            {"cost_components": {"transport_cost": 100.0}}, no_refs) == []
+        assert agent._cost_structure_insights(
+            {"cost_components": {"transport_cost": 100.0,
+                                 "facility_cost": 40.0}}, no_refs)
+
+    def test_zero_carbon_is_not_reported_as_a_carbon_finding(self):
+        agent = bare_agent()
+        assert agent._carbon_insights({"total_carbon_kg": 0.0}, no_refs) == []
+        assert agent._carbon_insights({"total_carbon_kg": 12.5}, no_refs)
+
+    def test_a_footprint_with_nothing_unselected_is_not_a_finding(self):
+        agent = bare_agent()
+        assert agent._footprint_insights(
+            {"n_facilities_open": 5, "n_facilities_closed": 0}, no_refs) == []
+        assert agent._footprint_insights(
+            {"n_facilities_open": 5, "n_facilities_closed": 2}, no_refs)
+
+
+class TestTheRecommendationFollowsFromTheEvidence:
+    """
+    Every branch used to produce the same sentence — "I recommend reviewing the
+    quantified impact above before moving to a formal option appraisal" —
+    whether the network stranded a fifth of its demand or ran comfortably.
+    """
+
+    def test_unserved_demand_comes_first(self):
+        text = bare_agent()._recommendation(
+            infeasible=False,
+            state={"unserved_demand": 200.0, "total_demand": 1000.0},
+            payload={"facilities": []}, negatives=[], insights=[object()])
+        assert "unserved demand" in text.lower()
+
+    def test_an_overloaded_site_is_named_next(self):
+        payload = {"facilities": [
+            {"facility_id": "D1", "is_open": True, "utilization_pct": 96.0}]}
+        text = bare_agent()._recommendation(
+            infeasible=False, state={"unserved_demand": 0.0},
+            payload=payload, negatives=[], insights=[object()])
+        assert "utilisation threshold" in text
+
+    def test_a_negative_rei_becomes_a_footprint_review(self):
+        text = bare_agent()._recommendation(
+            infeasible=False, state={"unserved_demand": 0.0},
+            payload={"facilities": []},
+            negatives=[{"facility_id": "DC_X", "performance_impact": -5.0}],
+            insights=[object()])
+        assert "footprint review" in text.lower()
+        assert "irreversible" in text.lower()
+
+    def test_idle_sites_become_a_consolidation_test(self):
+        payload = {"facilities": [
+            {"facility_id": "D1", "is_open": True, "utilization_pct": 9.0},
+            {"facility_id": "D2", "is_open": True, "utilization_pct": 11.0},
+        ]}
+        text = bare_agent()._recommendation(
+            infeasible=False, state={"unserved_demand": 0.0},
+            payload=payload, negatives=[], insights=[object()])
+        assert "consolidation" in text.lower()
+
+    def test_a_healthy_network_is_told_so_explicitly(self):
+        text = bare_agent()._recommendation(
+            infeasible=False, state={"unserved_demand": 0.0},
+            payload={"facilities": [
+                {"facility_id": "D1", "is_open": True, "utilization_pct": 55.0}]},
+            negatives=[], insights=[object()])
+        assert "no structural change" in text.lower()
+
+    def test_no_evidence_recommends_supplying_data_rather_than_acting(self):
+        text = bare_agent()._recommendation(
+            infeasible=False, state={}, payload={}, negatives=[], insights=[])
+        assert "more of the network's data" in text
+
+    def test_an_infeasible_network_is_not_offered_an_option_appraisal(self):
+        text = bare_agent()._recommendation(
+            infeasible=True, state={}, payload={}, negatives=[], insights=[])
+        assert "constraint conflict" in text.lower()
+
+    def test_no_recommendation_states_a_saving_it_has_not_computed(self):
+        """
+        Naming the next test is a recommendation; naming its result would be an
+        invention. No branch may quote a figure, because no scenario has run.
+        """
+        agent = bare_agent()
+        cases = [
+            dict(infeasible=True, state={}, payload={}, negatives=[], insights=[]),
+            dict(infeasible=False, state={"unserved_demand": 5.0},
+                 payload={}, negatives=[], insights=[object()]),
+            dict(infeasible=False, state={"unserved_demand": 0.0},
+                 payload={"facilities": [
+                     {"facility_id": "D", "is_open": True, "utilization_pct": 99.0}]},
+                 negatives=[], insights=[object()]),
+            dict(infeasible=False, state={"unserved_demand": 0.0},
+                 payload={"facilities": []},
+                 negatives=[{"facility_id": "X", "performance_impact": -1.0}],
+                 insights=[object()]),
+        ]
+        import re
+        # A currency symbol, or a figure attached to a saving or a cost. A
+        # recommendation may — and should — say it is NOT stating one; what it
+        # may never do is state one.
+        forbidden = re.compile(
+            r"[₹$€£]|(?:sav(?:e|es|ing)|cost)\s+(?:of\s+)?[\d,.]+", re.IGNORECASE)
+        for case in cases:
+            text = agent._recommendation(**case)
+            match = forbidden.search(text)
+            assert match is None, f"{match.group(0)!r} in {text!r}"
+
+
+# ===========================================================================
+# The service insight must not describe unserved demand as delivered late.
+
+class TestTheSlaInsightDescribesWhatTheEngineActuallyDid:
+    """
+    `pct_demand_in_sla` is the share of TOTAL demand served inside its stated
+    lead time. What the REST of it is depends entirely on how service was
+    enforced, and the insight asserted one answer unconditionally: "The
+    remainder is served, but not inside the lead time the data commits to."
+
+    Under TRANSIT_TIME_SLA_FEASIBILITY — the only methodology this engine
+    implements — an SLA-infeasible lane is deleted from the arc set before the
+    solve. Nothing CAN be served late. The remainder is demand that was not
+    served at all, which needs capacity or reachability, not expediting. The
+    engine's own `unserved_demand` said so in the insight directly above it,
+    so the product contradicted itself on a screen presented as evidence.
+    """
+
+    @staticmethod
+    def _service(state):
+        return ReasoningAgent._service_insights(state, no_refs)
+
+    def test_the_transit_time_engine_says_the_remainder_is_unserved(self):
+        out = self._service({
+            "pct_demand_in_sla": 64.19,
+            "unserved_demand": 46482.0,
+            "total_demand": 129803.0,
+            "service_methodology": "TRANSIT_TIME_SLA_FEASIBILITY",
+        })
+        # Located by what the finding IS. It used to be located by the string
+        # "64.19", which made these tests a pin on the number's PRECISION —
+        # so rounding the percentages for a leadership audience (54.00% is
+        # two digits that are always zero) failed a test about whether the
+        # engine describes unserved demand as delivered late.
+        sla = [i for i in out if "service level" in i.narrative]
+        assert sla, "the SLA finding must still be reported"
+        assert "64%" in sla[0].narrative, (
+            "the figure is still stated, at the precision a card is read at")
+        text = sla[0].narrative.lower()
+        assert "not served at all" in text
+        assert "46,482" in sla[0].narrative, (
+            "the authoritative unserved figure is what makes the claim checkable"
+        )
+
+    def test_it_never_claims_demand_was_delivered_late(self):
+        out = self._service({
+            "pct_demand_in_sla": 64.19,
+            "unserved_demand": 46482.0,
+            "service_methodology": "TRANSIT_TIME_SLA_FEASIBILITY",
+        })
+        for insight in out:
+            assert "served, but not inside" not in insight.narrative
+            assert "delivered late" not in insight.narrative.lower() or \
+                   "rather than delivered" in insight.narrative.lower()
+
+    def test_an_unrecorded_methodology_refuses_to_say_which(self):
+        """Absence of the methodology is not licence to guess what the gap is."""
+        out = self._service({
+            "pct_demand_in_sla": 64.19,
+            "unserved_demand": 46482.0,
+            "service_methodology": None,
+        })
+        sla = [i for i in out if "service level" in i.narrative]
+        assert sla
+        assert "64%" in sla[0].narrative
+        text = sla[0].narrative
+        assert "not recorded" in text
+        assert "cannot say" in text
+
+    def test_no_derived_percentage_is_invented(self):
+        """
+        "the other 31.52%" is a number no authoritative result holds, and the
+        numeric grounding check strips exactly that — mid-sentence, leaving
+        "The remaining [UNGROUNDED CLAIM REMOVED …] is outside it."
+        """
+        out = self._service({
+            "pct_demand_in_sla": 64.19,
+            "unserved_demand": 46482.0,
+            "service_methodology": "TRANSIT_TIME_SLA_FEASIBILITY",
+        })
+        for insight in out:
+            assert "35.81" not in insight.narrative
+            assert "31.52" not in insight.narrative
+
+    def test_a_fully_served_network_produces_no_sla_finding(self):
+        out = self._service({
+            "pct_demand_in_sla": 100.0,
+            "unserved_demand": 0.0,
+            "demand_fill_rate": 1.0,
+            "service_methodology": "TRANSIT_TIME_SLA_FEASIBILITY",
+        })
+        assert not any("service level" in i.narrative for i in out)
+
+
+class TestACostComponentNamesTheSpanItCovers:
+    """
+    A component of a horizon total is a horizon total. This said "per period"
+    unconditionally — beside a network total in the same list that correctly
+    named its twelve-period span.
+    """
+
+    @staticmethod
+    def _cost(state):
+        return ReasoningAgent._cost_structure_insights(state, no_refs)
+
+    def test_a_multi_period_solve_names_the_horizon(self):
+        out = self._cost({
+            "cost_components": {"facility_cost": 275640000.0,
+                                "transport_cost": 2983319.0},
+            "periods_modelled": 12,
+        })
+        assert out
+        assert "across the 12 periods modelled" in out[0].narrative
+        assert "per period" not in out[0].narrative
+
+    def test_a_single_period_solve_still_says_per_period(self):
+        out = self._cost({
+            "cost_components": {"facility_cost": 10.0, "transport_cost": 5.0},
+            "periods_modelled": 1,
+        })
+        assert out
+        assert "per period" in out[0].narrative
+
+    def test_the_component_does_not_borrow_the_networks_per_period_figure(self):
+        """`cost_per_period` divides the TOTAL; quoting it on one line would
+        attach the whole network's monthly cost to that line."""
+        out = self._cost({
+            "cost_components": {"facility_cost": 275640000.0,
+                                "transport_cost": 2983319.0},
+            "periods_modelled": 12,
+            "cost_per_period": 24475728.06,
+        })
+        assert "24,475,728" not in out[0].narrative
+
+
+class TestEveryFindingSaysWhatToDoAboutIt:
+    """
+    A finding without a step is a fact a reader has to translate into a
+    decision on their own.
+
+    The Overview's insight tiles print four things in one order — the
+    conclusion, why it matters in figures, what to do about it, and the way
+    into the full account — and the third of those has to come from somewhere
+    that saw the evidence. It comes from `/api/insights`: the Reasoning
+    Agent's own `recommended_action` when the narrative layer wrote one, and
+    the theme's default when it did not.
+
+    Both halves are tested here, because the second is what almost every page
+    load actually gets: a cached, un-prompted briefing takes the deterministic
+    template path, and the template writes prose and no action.
+    """
+
+    def test_the_schema_carries_one_and_it_is_optional(self):
+        from netgravity.orchestrator.schemas.reasoning import KPIInsight
+        insight = KPIInsight(theme="Capacity", headline="h", narrative="n")
+        assert insight.recommended_action == "", (
+            "an action the model did not write must not be invented by a "
+            "default")
+        written = KPIInsight(theme="Capacity", headline="h", narrative="n",
+                             recommended_action="Test a relieving scenario.")
+        assert written.recommended_action == "Test a relieving scenario."
+
+    def test_the_prompt_asks_for_one_on_every_insight(self):
+        from netgravity.orchestrator.reasoning.prompts import (
+            REASONING_AGENT_INSTRUCTIONS,
+        )
+        assert "recommended_action" in REASONING_AGENT_INSTRUCTIONS
+        # And it must not contain a figure: the model writes no numbers at
+        # all, which is what leaves numeric grounding nothing to redact.
+        assert "never contains a figure" in REASONING_AGENT_INSTRUCTIONS
+
+    def test_it_reaches_the_briefings_visible_text(self):
+        """
+        Grounding, the collective-voice check and the redaction sweep all run
+        over `visible_text()`. A field that reaches a screen and not that
+        method is a field nothing validates.
+        """
+        from netgravity.orchestrator.schemas.reasoning import (
+            ExecutiveBriefing, KPIInsight,
+        )
+        briefing = ExecutiveBriefing(
+            opening="I see one thing.",
+            kpi_insights=[KPIInsight(
+                theme="Capacity", headline="h", narrative="n",
+                recommended_action="Open the KPI page and relieve the sites.")],
+        )
+        assert "Open the KPI page" in briefing.visible_text()
+
+    def test_a_template_finding_still_gets_a_step(self):
+        """
+        The deterministic path writes no action. The serialiser supplies the
+        one for that theme and severity rather than leaving a tile headed
+        "Recommended action" with nothing under it.
+
+        WHAT THIS USED TO ASSERT: `assert "KPI page" in capacity`. It required
+        the recommendation on a capacity risk to contain the phrase "KPI page"
+        — which is the navigation instruction the screen was rewritten to stop
+        producing, and a test that pins it in place is a test working against
+        the product. It now requires the opposite.
+        """
+        from app.backend.api.insights import _recommended_action
+
+        class _I:
+            recommended_action = ""
+
+        capacity, _ = _recommended_action(_I(), "Capacity", "RISK")
+        assert capacity, "a capacity risk was given no step"
+        assert "KPI page" not in capacity
+        assert "Open the" not in capacity
+
+        # Opposite advice for the opposite finding under one theme: idle sites
+        # and overloaded sites are both "Utilisation".
+        over, _ = _recommended_action(_I(), "Utilisation", "RISK")
+        idle, _ = _recommended_action(_I(), "Utilisation", "OPPORTUNITY")
+        assert over != idle, (over, idle)
+
+        # A theme the map does not name falls to severity, never to silence.
+        unknown, _ = _recommended_action(_I(), "Some New Theme", "RISK")
+        assert unknown
+
+    def test_the_agents_own_step_wins(self):
+        """
+        `_recommended_action` returns `(sentence, intervention)` now: the
+        sentence a card prints, and the structured change behind it when the
+        ladder produced one. A written finding still wins outright, and it
+        carries no intervention — the agent wrote prose, not a scenario.
+        """
+        from app.backend.api.insights import _recommended_action
+
+        class _I:
+            recommended_action = "  Close the Guwahati lane and re-solve.  "
+
+        sentence, intervention = _recommended_action(_I(), "Capacity", "RISK")
+        assert sentence == "Close the Guwahati lane and re-solve."
+        assert intervention == {}
+
+    def test_no_step_ever_states_a_figure(self):
+        """
+        Every default is prose. A number written here would be a number no
+        engine produced, sitting beside four that they did.
+        """
+        import re
+        from app.backend.api.insights import (
+            _ACTION_BY_SEVERITY, _ACTION_BY_THEME,
+        )
+        for text in list(_ACTION_BY_THEME.values()) + list(
+                _ACTION_BY_SEVERITY.values()):
+            assert not re.search(r"\d", text), text
+
+    def test_the_payload_version_moved_with_the_field(self):
+        """
+        Briefings are cached against the network's `data_version`, which does
+        not move when this code changes. Without a bump every project that has
+        not re-uploaded goes on being served a payload with no action in it.
+        """
+        from app.backend.api.insights import _PAYLOAD_VERSION
+        assert _PAYLOAD_VERSION >= 4
+
+
+class TestTheScreensReadAReportRatherThanANarration:
+    """
+    The agent writes in the first person by contract — its validator enforces
+    it. A reader of the Overview is not having a conversation with the engine;
+    they are reading a report about their network, and "I see 452,610 units of
+    1,435,985 units of demand left unserved" put an extra actor in every
+    sentence on the page.
+
+    `plain_voice` is the rule the explanation card already owns, applied at the
+    presentation boundary so there is one definition of it and the briefing
+    itself is untouched.
+    """
+
+    def test_the_first_person_does_not_reach_the_payload(self, solved):
+        from app.backend.api.insights import _serialise_insight
+
+        orc, state = solved
+        result = briefing_for(orc, state)
+        assert result.briefing.kpi_insights, "no findings to check"
+        # The agent's own text is first-person, which is what its contract
+        # requires; this test would be vacuous if that stopped being true.
+        assert any("I " in i.narrative for i in result.briefing.kpi_insights)
+
+        for i, insight in enumerate(result.briefing.kpi_insights):
+            body = _serialise_insight(insight, i, scope="NETWORK",
+                                      entity_id=None, pack=None)
+            for field in ("headline", "narrative"):
+                assert " I " not in f" {body[field]} ", (field, body[field])
+                assert not body[field].startswith("I "), body[field]
+            # Every finding says what to do about it — except the briefing's
+            # own lead card, which restates the findings rather than making
+            # one and would otherwise print the page's headline
+            # recommendation a second time.
+            from app.backend.api.insights import _NO_ACTION_THEMES
+            if insight.theme not in _NO_ACTION_THEMES:
+                assert body["recommended_action"], insight.theme
+
+    def test_the_id_is_still_stable_across_the_rewording(self, solved):
+        """
+        `_headline_digest` reads the RAW headline. Had it read the plain-voice
+        one, every finding's id would have changed under a user who had
+        dismissed some of them, and everything they dismissed would come back.
+        """
+        from app.backend.api.insights import _serialise_insight
+
+        orc, state = solved
+        insights = briefing_for(orc, state).briefing.kpi_insights
+        first = _serialise_insight(insights[0], 0, scope="NETWORK",
+                                   entity_id=None, pack=None)
+        again = _serialise_insight(insights[0], 0, scope="NETWORK",
+                                   entity_id=None, pack=None)
+        assert first["id"] == again["id"]
+        assert first["id"].startswith("INS_NETWORK_NETWORK_")

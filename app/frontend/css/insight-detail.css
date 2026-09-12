@@ -1,0 +1,1542 @@
+/* ═════════════════════════════════════════════════════════════════════
+   Netgravity — Insight Deep Dive
+   References: Dump/Insights deep dive.jpeg, Dump/action to be taken.png,
+               Dump/insight action taken.png
+
+   Replaces the old drawer-based insight/recommendation detail panels.
+   Clicking a card in Home's attention feed now opens this as a full
+   page (#tab-insight-detail, a normal .tab-panel — same app shell,
+   sidebar and topbar as every other tab) rather than a slide-in drawer.
+   The mockups' own sidebar is NOT replicated here — this page reuses
+   the app's existing sidebar/topbar chrome.
+   ═════════════════════════════════════════════════════════════════════ */
+
+.insd-page {
+  /* 1560, up from 1320. On a 1680px window the page was letterboxed inside
+     its own column with about 135px of empty page on either side of it, and
+     the reader had asked why the text stops short of the screen. */
+  max-width: 1560px;
+  margin: 0 auto;
+  padding-bottom: 32px;
+}
+
+.insd-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9218EA;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 18px;
+}
+
+.insd-back-link:hover { text-decoration: underline; }
+.insd-back-link svg { width: 15px; height: 15px; }
+
+.insd-header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.insd-title {
+  font-size: 27px;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.insd-badge {
+  flex-shrink: 0;
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.insd-badge.tone-red   { background: #fee2e2; color: #dc2626; }
+.insd-badge.tone-amber { background: #fef3c7; color: #b45309; }
+.insd-badge.tone-green { background: #dcfce7; color: #15803d; }
+.insd-badge.tone-gray  { background: #f1f5f9; color: #64748b; }
+
+.insd-subtitle {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.5;
+  max-width: 760px;
+}
+
+/* ─── Risk banner ──────────────────────────────────────────── */
+.insd-risk-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-top: 20px;
+}
+
+.insd-risk-banner.tone-taken {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.insd-risk-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.insd-risk-banner.tone-taken .insd-risk-icon { background: #dcfce7; color: #16a34a; }
+
+.insd-risk-icon svg { width: 20px; height: 20px; }
+
+.insd-risk-body { flex: 1; min-width: 0; }
+
+.insd-risk-amount {
+  font-size: 17px;
+  font-weight: 800;
+  color: #dc2626;
+}
+
+.insd-risk-banner.tone-taken .insd-risk-amount { color: #15803d; }
+
+.insd-risk-note {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+.insd-risk-link {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9218EA;
+  cursor: pointer;
+}
+
+.insd-risk-link:hover { text-decoration: underline; }
+.insd-risk-link svg { width: 14px; height: 14px; }
+
+/* ─── Main split: chart (left) + recommendation/taken (right) ────── */
+.insd-main-split {
+  display: grid;
+  /* The left column carries a chart, a scale and a step-by-step chain; the
+     right carries one sentence, a button and two short blocks. 1.35/1 gave
+     the right column 553px of which the bottom half was empty on every
+     finding. */
+  grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr);
+  gap: 20px;
+  margin-top: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .insd-main-split { grid-template-columns: 1fr; }
+}
+
+.insd-card {
+  background: #ffffff;
+  border: 1px solid #eef0f3;
+  border-radius: 14px;
+  padding: 20px 22px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  box-sizing: border-box;
+}
+
+.insd-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.insd-chart-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* Under the chart, not squeezed into the title row: the key names as many
+   bands as the chart drew, and a title with four of them beside it wrapped
+   the title. */
+.insd-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid #f1f1f4;
+  font-size: 11.5px;
+  color: var(--text-2, #5a5a72);
+}
+
+.insd-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.insd-legend-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  background: #6B2FA0;
+  flex-shrink: 0;
+}
+
+.insd-legend-swatch.dashed {
+  width: 16px;
+  height: 0;
+  border-radius: 0;
+  background: none;
+  border-top: 2px dashed #ef4444;
+}
+
+/* How many bars carry this colour — the answer to "three sites are above the
+   threshold, which three" is the chart, but "how many" should not need
+   counting. */
+.insd-legend-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 10.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1, #1a1a2e);
+}
+
+.insd-chart-canvas-wrap {
+  height: 300px;
+  position: relative;
+}
+
+.insd-chart-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #f5f0fa;
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.insd-chart-note svg {
+  width: 16px;
+  height: 16px;
+  color: #9218EA;
+  flex-shrink: 0;
+}
+
+/* ─── Recommended action card (pending state) ─────────────────────── */
+.insd-rec-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 12px;
+}
+
+.insd-rec-head svg { width: 18px; height: 18px; color: #9218EA; }
+
+.insd-rec-sentence {
+  font-size: 16.5px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.insd-rec-sentence b,
+.insd-rec-sentence .insd-hl {
+  color: #9218EA;
+  font-weight: 800;
+}
+
+.insd-rec-sentence input.insd-edit-pct {
+  width: 56px;
+  font: inherit;
+  font-weight: 800;
+  color: #9218EA;
+  border: 1px solid #d8b4fe;
+  border-radius: 6px;
+  padding: 1px 4px;
+  text-align: center;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+.insd-why-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.insd-why-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #fffbeb;
+  color: #d97706;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.insd-why-icon svg { width: 15px; height: 15px; }
+
+.insd-why-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 4px;
+  /* The card titles put an inline SVG before the text. Every other icon in
+     this file sits inside a sized circular avatar (.insd-why-icon,
+     .insd-metric-icon) which constrains it; these do not, and an inline SVG
+     with no width/height attribute resolves to 100% of its container — so the
+     bulb beside "Evidence" rendered roughly 700px tall and pushed the table
+     off the fold. Sized here rather than on each icon so any title gains the
+     constraint by using the class. */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.insd-why-title svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: #9218EA;
+}
+
+.insd-why-text {
+  font-size: 12.5px;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.insd-why-stat {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.insd-why-stat-label {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+  max-width: 60%;
+}
+
+.insd-why-stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #9218EA;
+  text-align: right;
+}
+
+.insd-why-stat-sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+/* ─── Action-taken card ────────────────────────────────────────────── */
+.insd-taken-card {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.insd-taken-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.insd-taken-check {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.insd-taken-check svg { width: 16px; height: 16px; }
+
+.insd-taken-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.insd-taken-pill {
+  margin-left: 4px;
+  display: inline-flex;
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.insd-taken-time {
+  margin: 2px 0 12px 40px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.insd-taken-summary {
+  margin: 0 0 16px 40px;
+  font-size: 14px;
+  color: #111827;
+  line-height: 1.55;
+}
+
+.insd-taken-summary b { color: #16a34a; font-weight: 800; }
+
+.insd-taken-card .insd-metrics-row { margin-left: 0; }
+
+.insd-details-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #111827;
+  cursor: pointer;
+  padding: 4px 0;
+  width: 100%;
+}
+
+.insd-details-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s ease;
+}
+
+.insd-details-toggle.collapsed svg { transform: rotate(-90deg); }
+
+.insd-details-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.insd-details-body.hidden { display: none; }
+
+
+
+.insd-view-message-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9218EA;
+  cursor: pointer;
+}
+
+.insd-view-message-link:hover { text-decoration: underline; }
+.insd-view-message-link svg { width: 13px; height: 13px; }
+
+.insd-sent-message-box {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: #374151;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.insd-sent-message-box.hidden { display: none; }
+
+/* ─── Bottom action bar ────────────────────────────────────────────── */
+.insd-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+  padding-top: 4px;
+}
+
+.insd-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 46px;
+  padding: 0 24px;
+  background: linear-gradient(100deg, #7b0fd0 0%, #9218EA 50%, #a63bf2 100%);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(146, 24, 234, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.insd-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 9px 20px rgba(146, 24, 234, 0.36);
+}
+
+.insd-btn-primary svg { width: 16px; height: 16px; }
+
+.insd-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 46px;
+  padding: 0 22px;
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #ddd8e8;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.insd-btn-secondary:hover { border-color: #9218EA; color: #9218EA; }
+.insd-btn-secondary svg { width: 14px; height: 14px; }
+
+.insd-action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #9218EA;
+  cursor: pointer;
+}
+
+.insd-action-link:hover { text-decoration: underline; }
+.insd-action-link svg { width: 14px; height: 14px; }
+
+.insd-why-reveal {
+  flex-basis: 100%;
+  margin-top: -6px;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border: 1px solid #f0f0f5;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.55;
+  display: none;
+}
+
+.insd-why-reveal.open { display: block; }
+
+.insd-note-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: #f5f0fa;
+  color: #6b21a8;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.insd-note-pill svg { width: 15px; height: 15px; }
+
+/* ─── Footer note ──────────────────────────────────────────────────── */
+.insd-footer-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  font-size: 12.5px;
+  color: #9ca3af;
+}
+
+.insd-footer-note svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   MODAL — "Review proposed action"
+   Same overlay mechanics as .ing-loading-overlay / .chatbot-modal-overlay.
+   ═══════════════════════════════════════════════════════════════════ */
+.insd-modal-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(20, 14, 32, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.insd-modal-overlay.active {
+  display: flex;
+  opacity: 1;
+}
+
+.insd-modal-card {
+  width: 940px;
+  max-width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 30px 70px rgba(30, 10, 60, 0.32);
+  padding: 26px 30px 24px;
+  box-sizing: border-box;
+}
+
+.insd-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.insd-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.insd-modal-title-row svg { width: 22px; height: 22px; color: #9218EA; }
+
+.insd-modal-title {
+  font-size: 21px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.insd-modal-close {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.insd-modal-close:hover { color: #111827; background: #f3f4f6; }
+.insd-modal-close svg { width: 20px; height: 20px; }
+
+.insd-modal-sentence {
+  margin: 10px 0 4px;
+  font-size: 14.5px;
+  color: #111827;
+  line-height: 1.5;
+}
+
+.insd-modal-sub {
+  margin: 0 0 18px;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.insd-modal-split {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 26px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f5;
+}
+
+@media (max-width: 780px) {
+  .insd-modal-split { grid-template-columns: 1fr; }
+}
+
+.insd-modal-col-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 12px;
+}
+
+
+.insd-table td.insd-after-val { color: #16a34a; font-weight: 700; }
+.insd-table td.insd-after-val.worse { color: #dc2626; }
+.insd-table input.insd-shift-input {
+  width: 48px;
+  font: inherit;
+  font-weight: 700;
+  border: 1px solid #d8b4fe;
+  border-radius: 6px;
+  padding: 2px 4px;
+  text-align: center;
+  color: #9218EA;
+}
+
+.insd-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.insd-step-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.insd-step-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #f5f0fa;
+  color: #9218EA;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.insd-step-icon svg { width: 15px; height: 15px; }
+
+.insd-step-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.insd-step-desc {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.insd-step-item.skipped { opacity: 0.4; }
+
+.insd-modal-email-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #f0f0f5;
+}
+
+.insd-modal-email-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 12px;
+}
+
+.insd-modal-email-head svg { width: 16px; height: 16px; color: #9218EA; }
+
+.insd-email-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  font-size: 12.5px;
+  color: #374151;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f0f0f5;
+}
+
+.insd-email-meta-row b { font-weight: 600; color: #6b7280; margin-right: 4px; }
+
+.insd-email-body {
+  font-size: 12.5px;
+  color: #374151;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.insd-email-body.hidden { display: none; }
+
+.insd-email-edit-links {
+  display: flex;
+  gap: 18px;
+  margin-top: 10px;
+}
+
+.insd-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f5;
+  flex-wrap: wrap;
+}
+
+.insd-modal-footer-note {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.insd-modal-footer-note svg { width: 13px; height: 13px; }
+
+.insd-btn-reject {
+  height: 42px;
+  padding: 0 18px;
+  background: #ffffff;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.insd-btn-reject:hover { background: #fef2f2; }
+
+.insd-btn-outline {
+  height: 42px;
+  padding: 0 18px;
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #ddd8e8;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.insd-btn-outline:hover { border-color: #9218EA; color: #9218EA; }
+
+.insd-btn-outline-purple {
+  height: 42px;
+  padding: 0 18px;
+  background: #ffffff;
+  color: #9218EA;
+  border: 1px solid #d8b4fe;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.insd-btn-outline-purple:hover { background: #faf5ff; }
+
+.insd-btn-approve-send {
+  height: 42px;
+  padding: 0 20px;
+  background: linear-gradient(100deg, #7b0fd0 0%, #9218EA 50%, #a63bf2 100%);
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(146, 24, 234, 0.28);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACTION VIEW
+   ───────────────────────────────────────────────────────────────────
+   The right-hand column is the request panel and it is taller than the
+   left, which is the opposite of the finding view. That is deliberate:
+   on this page the form IS the content, and the left column is the
+   context for filling it in.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.insd-missing-field {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 19px;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin-bottom: 8px;
+}
+
+.insd-missing-unit {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6b7280;
+  background: #f5f0fa;
+  border-radius: 6px;
+  padding: 2px 8px;
+  letter-spacing: 0;
+}
+
+.insd-action-note {
+  font-size: 13.5px;
+  color: #4b5563;
+  line-height: 1.6;
+  margin: 0 0 14px;
+  /* Prose measure. A 700px line of body text at 13.5px is about 110
+     characters, which is roughly twice what stays readable. */
+  max-width: 62ch;
+}
+
+.insd-note-tight { margin: 8px 0 4px; font-size: 12.5px; }
+
+/* ─── The sites the field is missing from ───────────────────────── */
+.insd-affected {
+  border-top: 1px solid #f0f1f4;
+  padding-top: 14px;
+}
+
+.insd-affected-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.insd-affected-count {
+  background: #f5f0fa;
+  color: #9218EA;
+  border-radius: 999px;
+  padding: 1px 9px;
+  font-size: 11.5px;
+  letter-spacing: 0;
+}
+
+.insd-affected-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.insd-affected-list li {
+  font-size: 13.5px;
+  color: #374151;
+  padding-left: 16px;
+  position: relative;
+  line-height: 1.45;
+}
+
+/* A rule, not a bullet: these are rows of a table the reader recognises
+   from their own workbook, not a list of points being made. */
+.insd-affected-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 7px;
+  height: 1.5px;
+  background: #c9b6e2;
+}
+
+.insd-affected-more { margin-top: 8px; }
+
+.insd-affected-more summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #9218EA;
+  list-style: none;
+}
+
+.insd-affected-more summary::-webkit-details-marker { display: none; }
+.insd-affected-more[open] summary { margin-bottom: 8px; }
+
+/* ─── The request panel ─────────────────────────────────────────── */
+.insd-request { display: flex; flex-direction: column; }
+
+.insd-field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin: 14px 0 6px;
+}
+
+.insd-field-label:first-of-type { margin-top: 0; }
+
+.insd-input,
+.insd-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border: 1px solid #e3e5ea;
+  border-radius: 9px;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: #111827;
+  line-height: 1.5;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.insd-input:focus,
+.insd-textarea:focus {
+  outline: none;
+  border-color: #9218EA;
+  box-shadow: 0 0 0 3px rgba(146, 24, 234, 0.12);
+}
+
+.insd-textarea {
+  resize: vertical;
+  min-height: 150px;
+  /* The message is read as an email, and an email is monospaced-ish plain
+     text with meaningful line breaks. */
+  white-space: pre-wrap;
+}
+
+.insd-add-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.insd-btn-compact {
+  height: 38px;
+  padding: 0 16px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.insd-field-error {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: #dc2626;
+}
+
+/* ─── Recipients ────────────────────────────────────────────────── */
+.insd-recipients {
+  display: grid;
+  gap: 6px;
+}
+
+.insd-recipient {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid #eef0f3;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.insd-recipient:hover { border-color: #d9c9ee; }
+
+.insd-recipient.is-on {
+  border-color: #d3b8f0;
+  background: #faf6fe;
+}
+
+.insd-recipient input { accent-color: #9218EA; cursor: pointer; }
+
+.insd-recipient-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.insd-recipient-email {
+  font-size: 12.5px;
+  color: #6b7280;
+  margin-left: auto;
+  /* A long address must not push the label out of the row. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 55%;
+}
+
+/* ─── What will happen, and what did ────────────────────────────── */
+.insd-delivery-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 9px;
+  font-size: 12.5px;
+  color: #78350f;
+  line-height: 1.55;
+}
+
+.insd-delivery-note svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+
+.insd-delivery-note code {
+  font-size: 12px;
+  background: rgba(120, 53, 15, 0.09);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.insd-outcome {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.insd-outcome.tone-good { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+.insd-outcome.tone-info { background: #f5f0fa; border: 1px solid #e4d5f5; color: #5b21b6; }
+.insd-outcome.tone-bad  { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+.insd-send-btn {
+  margin-top: 16px;
+  width: 100%;
+  justify-content: center;
+}
+
+.insd-send-btn:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* The action bar sits inside the left column on the action view rather than
+   under both, because the request panel is much the taller of the two and a
+   full-width bar under it left about three hundred pixels of empty page
+   beside the card it belongs to. */
+.insd-action-bar-inline {
+  margin-top: 16px;
+  padding: 0;
+}
+
+.insd-action-bar-inline .insd-why-reveal { margin-top: 4px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   THE FINDING, EXPLAINED
+   ───────────────────────────────────────────────────────────────
+   Four things this page did not have: the narrative anywhere but a
+   footnote slot, a scale for the percentage it was judging, the chain
+   from figure to conclusion, and a button that went where this
+   particular finding was pointing.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* THE LEDE. Set as prose — wider leading, a comfortable measure — because
+   it is the paragraph the reader came for, and it used to be typeset as a
+   caption under a chart. */
+.insd-lede {
+  /* A measure, not a cap at two-thirds of the page. 78ch resolved to 714px
+     inside a 1320px page, so the sentence explaining the finding stopped
+     short of half way across and the rest of the line was empty. 105ch is
+     still a readable line and it reaches the edge of the banner below it. */
+  max-width: 105ch;
+  margin: 2px 0 16px;
+  font-size: 14.5px;
+  line-height: 1.62;
+  color: var(--text-1, #1f2937);
+}
+
+/* ─── Where a percentage sits against its threshold ───────────── */
+.insd-scale { margin: 16px 0 4px; }
+
+.insd-scale-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+
+.insd-scale-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2, #5a5a72);
+}
+
+.insd-scale-value {
+  font-size: 17px;
+  font-weight: 800;
+  color: #6B2FA0;
+  font-variant-numeric: tabular-nums;
+}
+
+.insd-scale-value.is-over { color: #dc2626; }
+
+.insd-scale-track {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  overflow: visible;
+}
+
+/* The caption hangs below the track, in the row the 0%/100% ends occupy. */
+.insd-scale { padding-bottom: 4px; }
+
+.insd-scale-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #8b47c4, #6B2FA0);
+  transition: width .35s ease;
+}
+
+.insd-scale-fill.is-over {
+  background: linear-gradient(90deg, #f08a8a, #dc2626);
+}
+
+/* The threshold as a position on the same axis, not a number in a legend. */
+.insd-scale-mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: #dc2626;
+  transform: translateX(-1px);
+}
+
+.insd-scale-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+/* The threshold caption, on the threshold's own offset rather than spaced
+   between the two ends. It is centred on the mark, and flipped to the left
+   of it near the right end so it cannot run off the edge of the track. */
+.insd-scale-caption {
+  position: absolute;
+  top: 100%;
+  margin-top: 6px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.insd-scale.caption-left .insd-scale-caption { transform: translateX(-100%); }
+
+/* ─── How this was reached ────────────────────────────────────── */
+.insd-reason-chain {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.insd-reason-step {
+  position: relative;
+  display: flex;
+  gap: 13px;
+  padding: 0 0 18px;
+}
+
+/* The thread down the left, so the steps read as one argument rather than
+   three unrelated blocks. Not drawn past the last one. */
+.insd-reason-step::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 26px;
+  bottom: 0;
+  width: 1.5px;
+  background: #ede9f3;
+}
+
+.insd-reason-step:last-child { padding-bottom: 0; }
+.insd-reason-step:last-child::before { display: none; }
+
+.insd-reason-index {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #f5f0fa;
+  color: #6B2FA0;
+  font-size: 11.5px;
+  font-weight: 800;
+  z-index: 1;
+}
+
+.insd-reason-index svg { width: 13px; height: 13px; }
+
+.insd-reason-step.is-conclusion .insd-reason-index {
+  background: #6B2FA0;
+  color: #fff;
+}
+
+.insd-reason-body { flex: 1; min-width: 0; padding-top: 3px; }
+
+.insd-reason-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-1, #1a1a2e);
+  letter-spacing: .01em;
+}
+
+.insd-reason-blurb {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-2, #6b7280);
+}
+
+.insd-reason-figures {
+  margin: 9px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.insd-reason-figure {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: #fafafa;
+  border: 1px solid #f1f1f4;
+}
+
+.insd-reason-figure dt {
+  font-size: 11.5px;
+  color: var(--text-2, #5a5a72);
+  min-width: 0;
+}
+
+.insd-reason-figure dd {
+  margin: 0;
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-1, #111827);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.insd-reason-source {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #9ca3af;
+  letter-spacing: .01em;
+}
+
+.insd-reason-conclusion {
+  margin: 5px 0 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #6B2FA0;
+}
+
+/* ─── Magnitude behind a figure, where the figures are comparable ─── */
+.insd-bar {
+  display: block;
+  margin-top: 5px;
+  height: 4px;
+  width: 100%;
+  max-width: 210px;
+  border-radius: 999px;
+  background: #eceff3;
+  overflow: hidden;
+}
+
+.insd-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #c4a4de;
+}
+
+/* ─── The finding's own call to action ────────────────────────── */
+.insd-rec-cta {
+  margin: 4px 0 18px;
+  width: 100%;
+  justify-content: center;
+}
+
+.insd-rec-cta svg { width: 16px; height: 16px; }
+
+/* The general routes, demoted under the finding's own. */
+.insd-action-bar-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+/* THE ACTION STAYS IN VIEW while the reasoning is read.
+   The left column now carries a chart, a scale and a step-by-step chain, so
+   it is routinely twice the height of the recommendation beside it — and a
+   reader who scrolled to the end of the working had scrolled the button off
+   the top of the window, which is the moment they are most likely to want
+   it. The card follows instead of leaving the column empty.
+   `align-items: start` on the grid is what makes this possible; without it
+   the card would stretch and have nothing to stick to. */
+@media (min-width: 1081px) {
+  .insd-main-split > .insd-card {
+    position: sticky;
+    top: 16px;
+  }
+}
+
+
+/* ─── How this was reached ─────────────────────────────────── */
+
+/* The account of the METHOD, above the working. Set apart from the steps
+   below it, because it is about all of them rather than any one. */
+.insd-method {
+  margin: 12px 0 0;
+  padding: 11px 13px;
+  border-radius: 9px;
+  background: #fafafa;
+  border: 1px solid #f1f1f4;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-2, #5a5a72);
+}
+
+/* The whole derivation, as a file. Full width and at the foot of the card:
+   it is the last thing a reader wants from this section, and the first thing
+   they want once they have to explain the finding to somebody else. */
+.insd-download {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--purple-200, #d4bfe8);
+  border-radius: 9px;
+  background: var(--purple-50, #f5f0fa);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--primary, #6B2FA0);
+  cursor: pointer;
+  transition: background .2s ease, border-color .2s ease;
+}
+
+.insd-download:hover { background: #ede0f7; }
+.insd-download:disabled { opacity: .65; cursor: default; }
+.insd-download:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.insd-download svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+.insd-download.is-failed {
+  background: #fef2f2;
+  border-color: #f6cfcf;
+  color: #dc2626;
+}
+
+/* The format, so nobody has to press the button to find out what they get. */
+.insd-download-ext {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(107, 47, 160, 0.12);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .05em;
+}

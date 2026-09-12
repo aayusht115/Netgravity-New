@@ -1,0 +1,41 @@
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    command: azurite-blob --blobHost 0.0.0.0 --location /data
+    environment:
+      AZURITE_ACCOUNTS: netgravity:a2Vhcm5leS1uZXRncmF2aXR5LWxvY2FsLWRldi1rZXk=
+    ports:
+      - "10000:10000"
+    volumes:
+      - azurite-data:/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      PORT: "8000"
+      NETGRAVITY_ENV: development
+      NETGRAVITY_STATE_BACKEND: azure_blob
+      NETGRAVITY_STORAGE_BACKEND: azure_blob
+      NETGRAVITY_AZURE_CONN_STR: DefaultEndpointsProtocol=http;AccountName=netgravity;AccountKey=a2Vhcm5leS1uZXRncmF2aXR5LWxvY2FsLWRldi1rZXk=;BlobEndpoint=http://azurite:10000/netgravity;
+    depends_on:
+      - azurite
+    ports:
+      - "8000:8000"
+    restart: on-failure
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend-next/Dockerfile
+    environment:
+      PYTHON_API_URL: http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    restart: on-failure
+
+volumes:
+  azurite-data:

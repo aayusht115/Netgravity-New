@@ -1,0 +1,311 @@
+/* Restore the pre-v3 Atlas presentation without replacing v3 components.
+   Load after the team's sheets and before the scoped Digital Twin sheet.
+   All screen content, chart semantics, states and print layouts stay v3. */
+@media screen {
+  :root {
+    --primary: #7636e8;
+    --primary-dark: #5c28bd;
+    --primary-hover: #5c28bd;
+    --primary-light: #f2ecff;
+    --primary-bg: #f3edff;
+    --primary-rgb: 118, 54, 232;
+    --bg: #f5f8fb;
+    --bg-page: #f5f8fb;
+    --bg-card: #fff;
+    --bg-elevated: #f3f6fa;
+    --bg-sidebar: #f9fbfe;
+    --bg-hover: #edf2f8;
+    --text-1: #151e35;
+    --text-2: #56647d;
+    --text-3: #68758e;
+    --border: #dfe7f0;
+    --border-light: #e9eef5;
+    --sidebar-w: 220px;
+    --shadow-sm: 0 2px 4px #2a426105, 0 5px 18px #2a426108;
+    --shadow-md: 0 6px 20px #2a426112;
+    --atlas-teal: #187c80;
+    --atlas-teal-wash: #eaf6f5;
+    --atlas-blue: #3566ac;
+    --atlas-blue-wash: #eef4ff;
+    --atlas-network-art: url('../assets/backgrounds/network-atmosphere.webp');
+    --wc-purple: var(--primary);
+    --wc-purple-dark: var(--primary-dark);
+    --wc-purple-wash: var(--primary-light);
+    --wc-ink: var(--text-1);
+    --wc-ink-2: var(--text-2);
+    --wc-ink-3: var(--text-3);
+    --wc-line: var(--border);
+  }
+
+  /* Inter remains locally hosted. Restore the quieter weights and spacing,
+     not a second font download or a competing component library. */
+  .app-shell { background: var(--bg); }
+  .sidebar { background: linear-gradient(180deg, #fff, var(--bg-sidebar) 42%, #f1f5fc); box-shadow: none; }
+  .sidebar:not(.collapsed) .sidebar-toggle-row {
+    position: absolute; right: 10px; top: 24px; margin: 0; padding: 0;
+  }
+  .sidebar:not(.collapsed) .sidebar-toggle-btn { width: 24px; height: 28px; }
+  .sidebar:not(.collapsed) .sidebar-brand-netgravity {
+    min-height: 82px; padding: 20px 36px 20px 16px; margin: 0;
+  }
+  .sidebar:not(.collapsed) .sidebar-brand-name { font-size: 20px; letter-spacing: -.035em; }
+  .sidebar:not(.collapsed) .sidebar-brand-sub { font-size: 11px; }
+  .nav-item {
+    color: #4f5e79; border-radius: 8px; min-height: 43px;
+    transition: background .16s, color .16s;
+  }
+  .nav-item:hover { background: #eff3f9; }
+  .nav-item.active { color: var(--primary); background: var(--primary-bg); box-shadow: inset 0 0 0 1px #e7dcfa; }
+  .nav-item.active::before { background: var(--primary); }
+  .sidebar-meta { background: transparent; padding-top: 20px; }
+  .meta-label { color: var(--text-3); letter-spacing: .05em; }
+  .meta-value { color: var(--text-1); line-height: 1.5; }
+
+  /* Keep v3's single scroll container and sticky header. Removing the top
+     padding also removes the need for its extra sticky coverage strip. */
+  .main-content {
+    padding: 0 24px 24px; background-color: var(--bg);
+    /* Decorative art only. One shared canvas avoids seams between the page
+       heading and its content; the actual maps retain their own surfaces. */
+    background-image: linear-gradient(180deg, #f5f8fb00 160px, var(--bg) 650px), var(--atlas-network-art);
+    background-position: right top; background-size: auto, 1100px auto;
+    background-repeat: no-repeat;
+  }
+  .app-global-topbar {
+    margin: 0 -24px; padding: 18px 24px; min-height: 80px;
+    flex-shrink: 0; gap: 16px; background: #fbfcfe;
+    border-bottom: 1px solid var(--border);
+  }
+  .app-global-topbar::before { display: none; }
+  .topbar-left-area { gap: 16px; }
+  .project-select-btn {
+    min-height: 43px; padding: 6px 12px !important;
+    border: 1px solid var(--border) !important; border-radius: 10px !important;
+    gap: 10px !important; box-shadow: var(--shadow-sm);
+    min-width: 155px; max-width: 335px;
+  }
+  .project-select-btn:hover { border-color: var(--primary) !important; background: var(--primary-light) !important; }
+  .control-select, .topbar-facility-select, .topbar-period-select {
+    min-height: 38px; border-radius: 9px; border-color: var(--border);
+    background-color: #fff; box-shadow: var(--shadow-sm); font-weight: 500;
+  }
+  .control-label, .topbar-control-group .control-label { font-size: 12px; font-weight: 500; color: var(--text-2); }
+  .topbar-icon-btn { background: transparent; color: #4f6086; border-color: var(--border); }
+  .btn-topbar-upload { border-radius: 9px; min-height: 39px; background: var(--primary); box-shadow: none; }
+  .btn-topbar-upload:hover { background: var(--primary-hover); box-shadow: none; transform: none; }
+  .app-sub-topbar {
+    margin: 0 -24px; padding: 20px 24px 16px;
+    background: transparent; border-bottom: 0;
+  }
+  .sub-topbar-title-wrap { flex-wrap: wrap; gap: 8px 16px; }
+  .ov-title, .page-title, .sub-topbar-main-title, .greeting-text {
+    font-size: 28px; font-weight: 650; letter-spacing: -.035em;
+    line-height: 1.25; color: var(--text-1);
+  }
+  .ov-subtitle, .sub-topbar-sub-title, .greeting-sub { color: var(--text-2); font-size: 13px; }
+  #tab-home, #tab-twin, #tab-facility-dashboard, #tab-forecast, #tab-scenarios, #tab-insights {
+    margin: 0 -24px; padding: 20px 24px 90px; background: transparent; min-width: 0;
+  }
+  #tab-facility-dashboard, #tab-forecast, #tab-scenarios, #tab-insights { padding-top: 8px; }
+
+  /* Existing layouts and severity colours are retained. */
+  .card, .ov-kpi, .dash-metric-card, .ov-attn-card, .ov-tile,
+  .home2-kpi-strip, .fc-chart-card, .ov-signals-card, .scn-table-card, .scn-take-card {
+    border: 1px solid var(--border); border-radius: 11px;
+    background: #fff; box-shadow: var(--shadow-sm);
+  }
+  .card:hover { box-shadow: var(--shadow-sm); }
+  .card { min-width: 0; }
+  .card-title, .fc-chart-title, .scn-table-title { color: var(--text-1); font-weight: 600; letter-spacing: -.02em; }
+  .home2-kpi-strip { padding: 20px 22px 10px; }
+  .home2-kpi-strip-icon { background: var(--primary-light); border-radius: 9px; }
+  /* Category accents, never performance ratings. The renderer supplies a
+     stable metric key; reordering the strip cannot change its meaning. */
+  .home2-kpi-strip-item[data-metric="avgUtilization"] { --metric-ink: var(--atlas-blue); --metric-wash: var(--atlas-blue-wash); }
+  .home2-kpi-strip-item[data-metric="fillRate"] { --metric-ink: var(--atlas-teal); --metric-wash: var(--atlas-teal-wash); }
+  .home2-kpi-strip-item[data-metric="carbonKgCo2e"] { --metric-ink: #33775b; --metric-wash: #edf6ef; }
+  .home2-kpi-strip-icon {
+    color: var(--metric-ink, var(--primary)); background: var(--metric-wash, var(--primary-light));
+    box-shadow: inset 0 0 0 1px #30486606;
+  }
+  .home2-kpi-strip { border-top: 2px solid #c8b9ea; }
+  .home2-kpi-strip-value, .dash-metric-val, .ov-kpi-value {
+    font-size: 24px; font-weight: 650; letter-spacing: -.035em;
+    font-variant-numeric: tabular-nums;
+  }
+  .home2-kpi-strip-name { color: var(--text-2); font-size: 12px; margin-top: 5px; }
+  .home2-kpi-strip-item + .home2-kpi-strip-item { border-color: var(--border-light); }
+  .dash-metric-title { color: var(--text-2); font-weight: 500; letter-spacing: .025em; }
+  .home-section-link { color: var(--primary); font-weight: 500; }
+  .ov-insights-title { font-size: 17px; font-weight: 600; }
+  .ov-tile { padding: 20px; gap: 14px; border-top: 3px solid #c5b5e8; }
+  .ov-tile.tone-risk { border-top-color: #cf7378; }
+  .ov-tile.tone-opportunity { border-top-color: #8abbb0; }
+  .ov-tile.tone-risk.is-lead { background: #fff8f8; border-color: #efcdce; border-top-color: #cc666d; }
+  .ov-tile-icon { align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px; background: var(--primary-light); }
+  .ov-tile.tone-risk .ov-tile-icon { background: #fbe9ea; }
+  .ov-tile.tone-opportunity .ov-tile-icon { background: #eaf5f0; }
+  .ov-tile-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .045em; white-space: normal; }
+  .ov-tile-figure-value { font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.035em; }
+  .ov-tile-highlight { font-size: 15px; font-weight: 600; line-height: 1.5; }
+  .ov-tile-section-label { color: var(--text-3); font-weight: 600; }
+  .ov-tile-description, .ov-tile-section-text { font-size: 13px; line-height: 1.65; }
+  .ov-tile-action { background: var(--primary-light); border-radius: 8px; }
+  .ov-tile-detail { color: var(--primary); font-weight: 500; }
+  .ov-data-card { border-radius: 11px; box-shadow: none; }
+
+  /* v3's network/DC/plant/lane lenses get the old Atlas selected-card
+     treatment. Their filters and drill-down handlers are unchanged. */
+  .kpi-domain-bar { gap: 8px; border: 0; }
+  .kpi-domain-tab {
+    border: 1px solid var(--border); border-radius: 9px; margin: 0;
+    padding: 12px; background: #fff; box-shadow: var(--shadow-sm);
+    white-space: normal; overflow: visible;
+  }
+  .kpi-domain-tab.active {
+    color: var(--primary); background: #f6f2ff; border-color: #c8b6f0;
+    box-shadow: inset 3px 0 var(--primary);
+  }
+  .kpi-filter-bar { padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+  .kpi-filter > span, .kpi-section-head { color: var(--text-2); font-weight: 500; }
+  .kpi-filter .control-select { border-radius: 8px; }
+  .kpi-scorecard-note { color: var(--text-2); }
+  .ng-table thead th { background: #eef2fb; color: #445678; font-weight: 600; border-color: #dce4f0; }
+  .ng-table tbody td { border-color: #edf1f6; }
+  /* Set the ROW background so explicit row/cell status treatments still win. */
+  .ng-table tbody tr:nth-child(even) { background-color: #f8fafd; }
+  .ng-table tbody tr:hover { background: #f6f9ff; }
+  .ng-table tbody tr:hover td { background-color: #f0f4fc; }
+  .ng-table tbody tr:focus-within td { background-color: #f0f4fc; }
+  .tag { border-radius: 6px; font-weight: 500; }
+  .tag-success { color: #28794e; background: #e5f3e9; }
+  .tag-muted { color: #65718a; background: #edf0f5; }
+  .toggle-group { border: 1px solid var(--border); padding: 3px; border-radius: 9px; background: #fff; box-shadow: var(--shadow-sm); }
+  .toggle-btn { border-radius: 6px; }
+  .scn-create-btn { background: var(--primary); border-radius: 9px; box-shadow: none; }
+  .scn-add-btn, .scn-customize-btn, #scn-add-scenario-btn, #scn-multi-customize-btn {
+    border-radius: 8px; border-color: var(--border); box-shadow: var(--shadow-sm);
+  }
+  .fc-method-panel { background: var(--bg-elevated); border-color: var(--border); }
+  .fc-ghost-btn, .fc-series-select { font-weight: 500; }
+  .scn-take-card { padding-top: 0; }
+  .scn-take-head { margin-top: 0; background: #f8f5ff; border-bottom: 1px solid #e8dff5; }
+  .scn-take-title, .scn-take-headline { font-weight: 600; }
+  .insp-rec { background: var(--primary-light); border-radius: 11px; box-shadow: none; }
+  .insp-row { border-radius: 11px; box-shadow: var(--shadow-sm); }
+  .insp-rec-headline, .insp-row-title { font-weight: 600; }
+  .insp-row-figure-value { font-weight: 650; font-variant-numeric: tabular-nums; }
+  .insd-title { color: var(--text-1); font-weight: 650; letter-spacing: -.035em; }
+  .insd-card { border-color: var(--border); border-radius: 11px; box-shadow: var(--shadow-sm); }
+  .insd-chart-title { color: var(--text-1); font-weight: 600; }
+  .insd-back-link { color: var(--primary); }
+
+  /* A small amount of identity in navigation and secondary actions, using
+     existing icons. Red/amber remain reserved for actual risk/data states. */
+  #nav-item-twin:not(.active) > svg, #nav-item-baseline:not(.active) > svg { color: var(--atlas-teal); }
+  #nav-item-forecast:not(.active) > svg, #nav-item-kpis:not(.active) > svg { color: var(--atlas-blue); }
+  #nav-item-insights:not(.active) > svg, #nav-item-scenarios:not(.active) > svg { color: #8660b3; }
+  .kpi-domain-tab { display: flex; align-items: center; justify-content: center; gap: 9px; }
+  .kpi-domain-tab::before {
+    content: ''; flex: 0 0 18px; width: 18px; height: 18px; background-color: currentColor;
+    mask: var(--domain-icon) center / contain no-repeat;
+    -webkit-mask: var(--domain-icon) center / contain no-repeat;
+  }
+  .kpi-domain-tab[data-domain="network"] { --domain-icon: url('../assets/icons/graph.svg'); }
+  .kpi-domain-tab[data-domain="dc"] { --domain-icon: url('../assets/icons/warehouse.svg'); }
+  .kpi-domain-tab[data-domain="plant"] { --domain-icon: url('../assets/icons/factory.svg'); }
+  .kpi-domain-tab[data-domain="lane"] { --domain-icon: url('../assets/icons/path.svg'); }
+  .kpi-domain-tab:hover { border-color: #b9a6de; background-color: #faf7ff; }
+  .kpi-domain-tab.active { box-shadow: inset 3px 0 var(--primary), 0 2px 6px #59378c09; }
+  .kpi-explain-btn { border-radius: 8px; padding: 6px 11px; font-weight: 600; border-color: #d9c9f2; }
+  .dash-metric-card { border-top: 2px solid #c7d8e9; }
+  .fc-method-panel { background: #f1f7f8; border-color: #d4e5e7; }
+  .scn-table-card { border-top: 2px solid #c7d8e9; }
+  .ov-data-card.tone-optional { background: #fffcf5; border-color: #eadcb9; }
+  .ov-data-card-icon { width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 8px; }
+  .ov-data-card.tone-optional .ov-data-card-icon { background: #fff0cc; }
+  .ov-data-card.tone-required .ov-data-card-icon { background: #fbe9ea; }
+  .ov-data-item-cta { border-radius: 7px; }
+  .ov-tile-detail { border-color: #e2d9f1; }
+  .ov-tile-detail:hover { border-color: #bca3e7; background: #f5f0fd; }
+
+  /* Short, finite UI feedback. No moving graph nodes, changing figures,
+     animated backgrounds or dependencies; reduced motion below wins. */
+  .tab-panel { animation: atlas-page-enter .22s ease-out; }
+  .kpi-domain-tab, .ov-tile-detail, .kpi-explain-btn, .control-select, .btn-topbar-upload {
+    transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease;
+  }
+  @keyframes atlas-page-enter { from { opacity: .35; } to { opacity: 1; } }
+
+  /* Keep the assistant available, without the oversized purple glow. */
+  .floating-chatbot-fab {
+    height: 44px; padding: 0 14px; border-radius: 10px;
+    background: var(--primary); border-color: var(--primary);
+    font-size: 12px; font-weight: 500; box-shadow: 0 4px 14px #30244920;
+  }
+  .floating-chatbot-fab:hover { background: var(--primary-hover); transform: none; box-shadow: var(--shadow-md); }
+  .chatbot-fab-icon-wrap { width: 26px; height: 26px; background: transparent; }
+  .app-shell :is(button, a, select, input, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--primary); outline-offset: 3px;
+  }
+}
+
+@media screen and (max-width: 1200px) {
+  .app-global-topbar { gap: 10px; padding: 14px 24px; flex-wrap: wrap; }
+  .topbar-left-area { gap: 10px; flex-wrap: wrap; }
+  .topbar-right-area { gap: 8px; margin-left: auto; }
+  .ov-tile { padding: 16px; }
+}
+@media screen and (max-width: 768px) {
+  .app-body { flex-direction: column; }
+  #sidebar {
+    display: flex; flex-direction: row; position: relative; width: 100% !important;
+    height: auto; flex: 0 0 auto; overflow-x: auto;
+    border-right: 0; border-bottom: 1px solid var(--border);
+  }
+  #sidebar .sidebar-toggle-row, #sidebar .sidebar-brand-netgravity, #sidebar .sidebar-meta,
+  #sidebar .nav-group-head { display: none; }
+  #sidebar .sidebar-nav { display: flex; flex: 0 0 auto; gap: 3px; padding: 6px; margin: 0; }
+  #sidebar .nav-group, #sidebar .nav-group-items, #sidebar .nav-group-inner { display: contents; }
+  #sidebar .nav-item {
+    flex: 0 0 auto; gap: 7px; margin: 0; padding: 9px 11px; min-height: 40px;
+    width: auto; border: 0; font-size: 12px; white-space: nowrap;
+  }
+  #sidebar .nav-item span { display: inline; }
+  #sidebar .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+  #sidebar #nav-item-settings { margin: 6px !important; }
+  .main-content { flex: 1 1 auto; min-height: 0; }
+  .kpi-domain-bar { flex-wrap: wrap; }
+  .kpi-domain-tab { flex-basis: calc(50% - 8px); }
+  .kpi-filter-row, .kpi-filter { min-width: 0; max-width: 100%; }
+  .kpi-filter { flex: 1 1 170px; }
+  .facility-toolbar { flex-wrap: wrap; }
+  .facility-toolbar #wh-basis { flex: 1 1 100%; }
+  .ng-chart-with-legend { flex-direction: column; height: auto !important; align-items: stretch; }
+  .ng-chart-with-legend > .chart-wrap { flex: none; width: 100%; height: 220px; }
+  .ng-legend { flex: none; max-height: none; }
+  .ng-legend-name { white-space: normal; overflow-wrap: anywhere; }
+  .scn-single-2col { grid-template-columns: minmax(0, 1fr); }
+  .scn-page-header, .scn-table-header-row { flex-wrap: wrap; }
+}
+@media screen and (max-width: 700px) {
+  .main-content { padding: 0 14px 14px; }
+  .app-global-topbar { margin: 0 -14px; padding: 10px 14px; }
+  .app-sub-topbar { margin: 0 -14px; padding: 16px 14px; }
+  #tab-home, #tab-twin, #tab-facility-dashboard, #tab-forecast, #tab-scenarios, #tab-insights {
+    margin: 0 -14px; padding: 16px 14px 90px;
+  }
+  .ov-title, .page-title, .sub-topbar-main-title, .greeting-text { font-size: 23px; }
+  .home2-kpi-strip { padding: 16px; }
+  .home2-kpi-strip-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; }
+  .home2-kpi-strip-item { align-items: flex-start; gap: 8px; }
+  .home2-kpi-strip-value { font-size: 21px; }
+  .home2-kpi-strip-icon { width: 30px; height: 30px; }
+  .home2-kpi-strip-icon svg { width: 16px; height: 16px; }
+  .floating-chatbot-fab { right: 16px; bottom: 16px; }
+}
+@media screen and (prefers-reduced-motion: reduce) {
+  .app-shell *, .app-shell *::before, .app-shell *::after, .floating-chatbot-fab {
+    animation: none !important; transition: none !important; scroll-behavior: auto !important;
+  }
+}

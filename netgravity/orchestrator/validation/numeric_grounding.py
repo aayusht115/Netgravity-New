@@ -1,0 +1,885 @@
+"""
+Orchestrator — Deterministic numeric-claim grounding.
+
+The reasoning agent may write the explanation. It may **never** become the
+source of truth for a number.
+
+```
+Deterministic Results → Canonical Evidence → Reasoning Agent → Claims
+                                                                 ↓
+                                                      Numeric Claim Validator
+                                                                 ↓
+                                                        Validated Response
+```
+
+Every numeric claim in generated narrative is checked against authoritative
+values. Three verdicts:
+
+    GROUNDED      matches an authoritative value within tolerance
+    CONTRADICTED  a value of that kind exists, and the claim disagrees
+    UNSUPPORTED   no authoritative value of that kind exists at all
+
+Both failure modes matter, and they are different. CONTRADICTED is the model
+misreporting a real figure ("cost rose 50%" when it rose 14.3%). UNSUPPORTED is
+the model inventing a figure from nothing ("cost rose 12%" when no cost was
+computed). Neither may be returned as fact.
+
+Authoritative sources
+─────────────────────
+    MILP            cost, flow, capacity, feasibility
+    KPI engine      SLA, service level, utilisation, demand fulfilment
+    REI engine      REI
+    Risk engine     P, RF
+    Scenario engine scenario overrides and metadata
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+import re
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Tolerance
+# ---------------------------------------------------------------------------
+
+#: Relative tolerance. 0.5% absorbs sensible rounding (14.3 vs 14.30, 14.2997)
+#: without absorbing a genuine error (14.3 vs 15.8 is ~10% off and fails).
+RELATIVE_TOLERANCE = 0.005
+#: Absolute floor so near-zero values do not fail on relative comparison alone.
+ABSOLUTE_TOLERANCE = 0.01
+#: A claim quoted to fewer decimals than the authority is compared at the
+#: claim's precision — "14%" against 14.3 is a legitimate rounding, "13%" is not.
+ALLOW_ROUNDING_TO_CLAIM_PRECISION = True
+
+
+class ClaimVerdict(str, Enum):
+    GROUNDED     = "GROUNDED"
+    CONTRADICTED = "CONTRADICTED"
+    UNSUPPORTED  = "UNSUPPORTED"
+    #: Numbers that are not factual claims about results (counts, ordinals,
+    #: years). Policed loosely on purpose — see `_is_policeable`.
+    IGNORED      = "IGNORED"
+
+
+class ClaimKind(str, Enum):
+    """What kind of quantity a claim asserts. Drives which facts it may match."""
+    PERCENTAGE = "PERCENTAGE"
+    CURRENCY   = "CURRENCY"
+    UNITS      = "UNITS"
+    RATIO      = "RATIO"      # bare decimal in [0,1] — REI, RF, fill rate
+    COUNT      = "COUNT"
+    UNKNOWN    = "UNKNOWN"
+
+
+#: Fact sources a narrative may QUOTE but which are not measurements of the
+#: network, so a mistaken claim is never adjudicated against them. A configured
+#: threshold is the case: "no site reaches the 90% threshold" must ground, while
+#: an invented "cost rose 12%" must come back UNSUPPORTED rather than reported
+#: as contradicting a utilisation threshold it has nothing to do with.
+_CITABLE_ONLY_SOURCES = frozenset({"configured_threshold"})
+
+
+@dataclass(frozen=True)
+class AuthoritativeFact:
+    """One deterministic value the narrative is allowed to cite."""
+    key: str
+    value: float
+    kind: ClaimKind
+    source: str          # "optimization_result" | "kpi_engine" | "rei_engine" | ...
+
+
+@dataclass
+class NumericClaim:
+    """A number asserted in generated narrative."""
+    raw_text: str
+    value: float
+    kind: ClaimKind
+    verdict: ClaimVerdict = ClaimVerdict.UNSUPPORTED
+    matched_fact: Optional[str] = None
+    matched_value: Optional[float] = None
+    source: Optional[str] = None
+    detail: str = ""
+    # Provenance, attached when the claim is accepted.
+    provenance: Dict[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "claim": self.raw_text,
+            "value": self.value,
+            "kind": self.kind.value,
+            "verdict": self.verdict.value,
+            "matched_fact": self.matched_fact,
+            "authoritative_value": self.matched_value,
+            "source": self.source,
+            "detail": self.detail,
+            "provenance": self.provenance,
+        }
+
+
+@dataclass
+class GroundingReport:
+    """Outcome of grounding every claim in one narrative."""
+    claims: List[NumericClaim] = field(default_factory=list)
+    status: str = "GROUNDED"     # GROUNDED | GROUNDING_FAILED | NO_CLAIMS
+
+    @property
+    def contradicted(self) -> List[NumericClaim]:
+        return [c for c in self.claims if c.verdict == ClaimVerdict.CONTRADICTED]
+
+    @property
+    def unsupported(self) -> List[NumericClaim]:
+        return [c for c in self.claims if c.verdict == ClaimVerdict.UNSUPPORTED]
+
+    @property
+    def grounded(self) -> List[NumericClaim]:
+        return [c for c in self.claims if c.verdict == ClaimVerdict.GROUNDED]
+
+    @property
+    def failed(self) -> bool:
+        return bool(self.contradicted or self.unsupported)
+
+    def warnings(self) -> List[str]:
+        out: List[str] = []
+        for c in self.contradicted:
+            out.append(
+                f"CONTRADICTED numeric claim '{c.raw_text}': authoritative "
+                f"{c.matched_fact} = {c.matched_value} (source: {c.source})."
+            )
+        for c in self.unsupported:
+            out.append(
+                f"UNSUPPORTED numeric claim '{c.raw_text}': no authoritative "
+                f"{c.kind.value.lower()} value exists in the deterministic results."
+            )
+        return out
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "status": self.status,
+            "n_claims": len(self.claims),
+            "n_grounded": len(self.grounded),
+            "n_contradicted": len(self.contradicted),
+            "n_unsupported": len(self.unsupported),
+            "claims": [c.to_dict() for c in self.claims],
+        }
+
+
+# ---------------------------------------------------------------------------
+# Building the authoritative fact set
+# ---------------------------------------------------------------------------
+
+#: Deterministic payload key → (fact kind, authoritative source label).
+#: Only fields listed here may be cited numerically.
+_FACT_SPEC: Dict[str, Tuple[ClaimKind, str]] = {
+    # MILP / optimization
+    "business_network_cost":     (ClaimKind.CURRENCY, "optimization_result"),
+    "solver_objective":          (ClaimKind.CURRENCY, "optimization_result"),
+    "business_cost_delta":       (ClaimKind.CURRENCY, "optimization_result"),
+    "business_cost_delta_pct":   (ClaimKind.PERCENTAGE, "optimization_result"),
+    "baseline_business_cost":    (ClaimKind.CURRENCY, "optimization_result"),
+    "facility_cost":             (ClaimKind.CURRENCY, "optimization_result"),
+    "transport_cost":            (ClaimKind.CURRENCY, "optimization_result"),
+    "handling_cost":             (ClaimKind.CURRENCY, "optimization_result"),
+    "inventory_cost":            (ClaimKind.CURRENCY, "optimization_result"),
+    "closure_cost":              (ClaimKind.CURRENCY, "optimization_result"),
+    "opening_cost":              (ClaimKind.CURRENCY, "optimization_result"),
+    "carbon_cost":               (ClaimKind.CURRENCY, "optimization_result"),
+    "shortage_penalty_cost":     (ClaimKind.CURRENCY, "optimization_result"),
+    # `business_network_cost` divided by the periods the solve modelled, from
+    # the solve itself. Citable because a narrative reporting a horizon cost
+    # has to be able to say what one period of it is — otherwise the only way
+    # to state the figure a planner budgets against is to compute it in prose,
+    # which is precisely the unsourced number this validator exists to catch.
+    "cost_per_period":           (ClaimKind.CURRENCY, "optimization_result"),
+    # How many planning periods the figures above cover. A bare count, so
+    # `_is_policeable` ignores it as a claim; declared here so that when it does
+    # appear beside a cost it is a sourced number rather than an unexplained one.
+    "periods_modelled":          (ClaimKind.COUNT, "optimization_result"),
+    # KPI engine
+    "total_demand":              (ClaimKind.UNITS, "kpi_engine"),
+    "served_demand":             (ClaimKind.UNITS, "kpi_engine"),
+    "unserved_demand":           (ClaimKind.UNITS, "kpi_engine"),
+    "rerouted_volume":           (ClaimKind.UNITS, "kpi_engine"),
+    "total_carbon_kg":           (ClaimKind.UNITS, "kpi_engine"),
+    "demand_fill_rate":          (ClaimKind.RATIO, "kpi_engine"),
+    "unserved_demand_rate":      (ClaimKind.RATIO, "kpi_engine"),
+    "pct_demand_in_sla":         (ClaimKind.PERCENTAGE, "kpi_engine"),
+    "avg_utilization_pct":       (ClaimKind.PERCENTAGE, "kpi_engine"),
+    "max_utilization_pct":       (ClaimKind.PERCENTAGE, "kpi_engine"),
+    "utilization_pct":           (ClaimKind.PERCENTAGE, "kpi_engine"),
+    # REI engine
+    "max_rei":                   (ClaimKind.RATIO, "rei_engine"),
+    "rei":                       (ClaimKind.RATIO, "rei_engine"),
+    "max_performance_impact":    (ClaimKind.CURRENCY, "rei_engine"),
+    "performance_impact":        (ClaimKind.CURRENCY, "rei_engine"),
+    "cost_impact_pct":           (ClaimKind.PERCENTAGE, "rei_engine"),
+    "service_loss":              (ClaimKind.RATIO, "rei_engine"),
+    # Scenario comparison
+    #
+    # A comparison's figures are DIFFERENCES between two solved scenarios, and
+    # the difference is the whole point: "Nagpur costs less than expanding
+    # Delhi" cannot be said without citing the gap. Each is derived from two
+    # authoritative costs by subtraction only — see
+    # orchestrator/reasoning/comparison_evidence.py, which re-ranks nothing
+    # and decides nothing.
+    "recommended_cost":          (ClaimKind.CURRENCY, "kpi_engine"),
+    "recommended_cost_delta":    (ClaimKind.CURRENCY, "kpi_engine"),
+    "baseline_cost":             (ClaimKind.CURRENCY, "kpi_engine"),
+    "cost_gap_vs_recommended":   (ClaimKind.CURRENCY, "kpi_engine"),
+    "recommended_fill_rate":     (ClaimKind.RATIO, "kpi_engine"),
+    "fill_rate":                 (ClaimKind.RATIO, "kpi_engine"),
+    "fill_gap_vs_recommended_pts": (ClaimKind.PERCENTAGE, "kpi_engine"),
+    "n_compared":                (ClaimKind.COUNT, "kpi_engine"),
+    "n_not_comparable":          (ClaimKind.COUNT, "kpi_engine"),
+    # ── One KPI chart ───────────────────────────────────────────────────
+    #
+    # A chart explanation is read BESIDE the chart, so a sentence carrying no
+    # quantities says less than the picture under it. These are the values a
+    # chart briefing is allowed to cite, and they are declared HERE rather
+    # than trusted from the payload: `build_authoritative_facts` only admits
+    # keys named in this table, which is what stops a model quoting a number
+    # nobody computed.
+    #
+    # Every one is produced by `reasoning/kpi_chart_evidence.py` from the
+    # backend's own solved `WarehouseHealthKPI` rows — the same records the
+    # chart drew — so a figure in the sentence and a bar above it come from
+    # one source and cannot disagree.
+    "peak_utilization_pct":      (ClaimKind.PERCENTAGE, "kpi_chart"),
+    "threshold_pct":             (ClaimKind.PERCENTAGE, "kpi_chart"),
+    #: A gap between two percentages, in points rather than per cent.
+    "peak_above_average_pts":    (ClaimKind.PERCENTAGE, "kpi_chart"),
+    "points":                    (ClaimKind.PERCENTAGE, "kpi_chart"),
+    "rated_capacity_per_period": (ClaimKind.UNITS, "kpi_chart"),
+    "avg_throughput_units":      (ClaimKind.UNITS, "kpi_chart"),
+    "peak_throughput_units":     (ClaimKind.UNITS, "kpi_chart"),
+    "used_in_peak_period":       (ClaimKind.UNITS, "kpi_chart"),
+    "headroom_units":            (ClaimKind.UNITS, "kpi_chart"),
+    "total_headroom_units":      (ClaimKind.UNITS, "kpi_chart"),
+    "headroom_in_peak_period_units": (ClaimKind.UNITS, "kpi_chart"),
+    "avg_inventory_units":       (ClaimKind.UNITS, "kpi_chart"),
+    "peak_inventory_units":      (ClaimKind.UNITS, "kpi_chart"),
+    "peak_above_average_units":  (ClaimKind.UNITS, "kpi_chart"),
+    "peak_to_average_ratio":     (ClaimKind.RATIO, "kpi_chart"),
+    "seasonal_ratio_threshold":  (ClaimKind.RATIO, "kpi_chart"),
+    "flat_ratio_threshold":      (ClaimKind.RATIO, "kpi_chart"),
+    # Counts. `_is_policeable` ignores a bare count as a claim; declared so
+    # that when one appears beside a measured figure it reads as sourced.
+    "n_sites":                   (ClaimKind.COUNT, "kpi_chart"),
+    "n_at_or_above_threshold_in_peak": (ClaimKind.COUNT, "kpi_chart"),
+    "n_below_threshold_on_average_but_not_in_peak": (ClaimKind.COUNT, "kpi_chart"),
+    "n_tight_in_every_period":   (ClaimKind.COUNT, "kpi_chart"),
+    "n_reporting_stock":         (ClaimKind.COUNT, "kpi_chart"),
+    "n_not_reporting_stock":     (ClaimKind.COUNT, "kpi_chart"),
+    "n_building_for_a_season":   (ClaimKind.COUNT, "kpi_chart"),
+    "n_holding_a_flat_buffer":   (ClaimKind.COUNT, "kpi_chart"),
+    "tight_periods":             (ClaimKind.COUNT, "kpi_chart"),
+    "periods_observed":          (ClaimKind.COUNT, "kpi_chart"),
+    # Forecasting engine
+    #
+    # A projection, not a measurement — and citable for exactly the same reason
+    # every other fact here is: the figure is produced by a named engine, not
+    # by prose. `_forecast_outlook` sums `ForecastResult` points and the
+    # observed history the forecaster was given; it computes no forecast.
+    #
+    # Without these, every number in a forecast briefing was stripped as
+    # unsupported and the recommendation read "run a demand scenario at
+    # [UNSUPPORTED FIGURE REMOVED]".
+    "total_forecast_units":      (ClaimKind.UNITS, "forecasting_engine"),
+    "comparable_recent_units":   (ClaimKind.UNITS, "forecasting_engine"),
+    "forecast_units":            (ClaimKind.UNITS, "forecasting_engine"),
+    "recent_units":              (ClaimKind.UNITS, "forecasting_engine"),
+    "growth_pct":                (ClaimKind.PERCENTAGE, "forecasting_engine"),
+    "mean_multiplier":           (ClaimKind.RATIO, "forecasting_engine"),
+    "std_multiplier":            (ClaimKind.RATIO, "forecasting_engine"),
+    "magnitude":                 (ClaimKind.RATIO, "forecasting_engine"),
+    "horizon":                   (ClaimKind.COUNT, "forecasting_engine"),
+    "n_series_forecast":         (ClaimKind.COUNT, "forecasting_engine"),
+    "n_series_total":            (ClaimKind.COUNT, "forecasting_engine"),
+    "n_history_periods":         (ClaimKind.COUNT, "forecasting_engine"),
+    "n_signal_adjustments":      (ClaimKind.COUNT, "forecasting_engine"),
+    "n_structural_breaks":       (ClaimKind.COUNT, "forecasting_engine"),
+    # Risk engine
+    "risk_factor":               (ClaimKind.RATIO, "risk_engine"),
+    "max_risk_factor":           (ClaimKind.RATIO, "risk_engine"),
+    "likelihood":                (ClaimKind.RATIO, "risk_engine"),
+    "event_probability":         (ClaimKind.RATIO, "risk_engine"),
+    "confidence":                (ClaimKind.RATIO, "risk_engine"),
+    # Configured thresholds — see `_CITABLE_ONLY_SOURCES`.
+    #
+    # Facts about the CONFIGURATION rather than about the network, and citable
+    # for the same reason any other fact is: a narrative that says "no site
+    # reaches the 90% threshold" is explaining where the line is drawn, and the
+    # line is a real, sourced number from `config/defaults.py`.
+    #
+    # Without them here, the 90 in that sentence had no same-kind fact to match
+    # and was adjudicated CONTRADICTED against `pct_demand_in_sla = 100` — a
+    # percentage measured on something else entirely. The claim was then
+    # stripped out mid-sentence and the whole briefing marked
+    # GROUNDING_FAILED. The validator was right to police the number; it just
+    # had no way to know the number was a threshold, because nothing told it.
+    "utilization_over_pct":      (ClaimKind.PERCENTAGE, "configured_threshold"),
+    "utilization_under_pct":     (ClaimKind.PERCENTAGE, "configured_threshold"),
+    # Counts
+    "n_open_facilities":         (ClaimKind.COUNT, "optimization_result"),
+    "n_facilities_open":         (ClaimKind.COUNT, "optimization_result"),
+    "n_facilities_closed":       (ClaimKind.COUNT, "optimization_result"),
+    "n_facilities_assessed":     (ClaimKind.COUNT, "rei_engine"),
+    # Facility and lane-level Digital Twin values, copied from MILP/KPI output.
+    "throughput_units":          (ClaimKind.UNITS, "optimization_result"),
+    "capacity_units":            (ClaimKind.UNITS, "optimization_result"),
+    "flow_units":                (ClaimKind.UNITS, "optimization_result"),
+    "baseline_units":            (ClaimKind.UNITS, "digital_twin_comparison"),
+    "comparison_units":          (ClaimKind.UNITS, "digital_twin_comparison"),
+    "units_delta":               (ClaimKind.UNITS, "digital_twin_comparison"),
+    "distance_km":               (ClaimKind.UNITS, "optimization_result"),
+    "carbon_kg":                 (ClaimKind.UNITS, "optimization_result"),
+    "share_of_total_units":      (ClaimKind.RATIO, "optimization_result"),
+    "closure_cost_charged":      (ClaimKind.CURRENCY, "optimization_result"),
+    # Warehouse deep dive — the same solve, read per period.
+    #
+    # `peak_utilization_pct` is the MILP's own worst-period figure and is the
+    # correction to `utilization_pct` above, which over a horizon is an
+    # average. A briefing that cannot cite the peak can only report the
+    # average, which is how "capacity is not what limits this plan" came to be
+    # said about a network with a site at 95% in March.
+    "peak_utilization_pct":      (ClaimKind.PERCENTAGE, "kpi_engine"),
+    "avg_peak_utilization_pct":  (ClaimKind.PERCENTAGE, "kpi_engine"),
+    "bottleneck_periods_count":  (ClaimKind.COUNT, "kpi_engine"),
+    "periods_observed":          (ClaimKind.COUNT, "kpi_engine"),
+    "n_bottlenecks":             (ClaimKind.COUNT, "kpi_engine"),
+    "n_underused":               (ClaimKind.COUNT, "kpi_engine"),
+    "n_warehouses":              (ClaimKind.COUNT, "kpi_engine"),
+    "total_facility_cost":       (ClaimKind.CURRENCY, "optimization_result"),
+    "share_of_facility_spend":   (ClaimKind.RATIO, "optimization_result"),
+}
+
+
+def build_authoritative_facts(payload: Dict[str, Any]) -> Dict[str, AuthoritativeFact]:
+    """
+    Flatten deterministic results into the set of citable values.
+
+    Walks the payload recursively so nested blocks (cost components, REI rows)
+    are covered. Only keys in `_FACT_SPEC` become facts — anything else is not
+    a quantity the narrative may assert.
+    """
+    facts: Dict[str, AuthoritativeFact] = {}
+
+    def visit(node: Any, path: str = "") -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                spec = _FACT_SPEC.get(key)
+                # Digital Twin KPI comparisons use generic value keys and name
+                # the actual metric beside them. Inherit that metric's kind so
+                # a cost delta cannot accidentally ground against a unit delta.
+                if spec is None and key in {
+                    "baseline_value", "comparison_value", "abs_delta"
+                }:
+                    metric_name = str(node.get("metric", ""))
+                    metric_spec = _FACT_SPEC.get(metric_name)
+                    if metric_spec is not None:
+                        spec = (metric_spec[0], "digital_twin_comparison")
+                elif spec is None and key == "pct_delta":
+                    spec = (ClaimKind.PERCENTAGE, "digital_twin_comparison")
+                if spec is not None and isinstance(value, (int, float)) and not isinstance(value, bool):
+                    kind, source = spec
+                    fact_key = f"{path}.{key}" if path else key
+                    facts[fact_key] = AuthoritativeFact(
+                        key=fact_key, value=float(value), kind=kind, source=source,
+                    )
+                visit(value, f"{path}.{key}" if path else key)
+        elif isinstance(node, list):
+            for idx, item in enumerate(node[:50]):   # bound the walk
+                visit(item, f"{path}[{idx}]")
+
+    visit(payload)
+    return facts
+
+
+# ---------------------------------------------------------------------------
+# Claim extraction
+# ---------------------------------------------------------------------------
+
+_CURRENCY_SYMBOLS = "₹$€£¥"
+
+#: One number pattern for everything. Anchored so a grouped number such as
+#: "1,000.00" is captured whole — an earlier version matched sub-spans and
+#: turned 1,000.00 into 0.00, which made the deterministic template fail its own
+#: grounding check.
+_NUMBER_PATTERN = re.compile(
+    r"""
+    (?<![\w.])                      # not mid-identifier / mid-number
+    (?P<sign>[-+])?
+    (?P<number>
+        \d{1,3}(?:,\d{3})+(?:\.\d+)?   # 1,000  /  12,037.88
+      | \d+\.\d+                        # 14.3
+      | \.\d+                           # .94
+      | \d+                             # 12
+    )
+    (?![\d,]*\d\s*(?:st|nd|rd|th)\b)    # ignore ordinals
+    """,
+    re.VERBOSE,
+)
+
+#: Scale words that multiply the preceding number.
+_SCALE_PATTERN = re.compile(
+    r"^\s*(crore|lakh|million|billion|bn|mn|k)\b", re.IGNORECASE,
+)
+#: Unit markers that follow a number and fix its kind.
+_PERCENT_SUFFIX = re.compile(
+    r"^\s*(?:%|percent(?:age)?(?:\s*points?)?)", re.IGNORECASE,
+)
+_UNIT_SUFFIX = re.compile(
+    r"^\s*(?:units?|kg|kgs?|tonnes?|tons?|co2e?)\b", re.IGNORECASE,
+)
+
+_MULTIPLIERS = {
+    "crore": 1e7, "lakh": 1e5, "million": 1e6, "mn": 1e6,
+    "billion": 1e9, "bn": 1e9, "k": 1e3,
+}
+
+
+def _parse_number(raw: str) -> Optional[float]:
+    """Parse a numeric token, applying any scale word (crore, million, k…)."""
+    cleaned = raw.strip()
+    for symbol in _CURRENCY_SYMBOLS:
+        cleaned = cleaned.replace(symbol, " ")
+    lowered = cleaned.lower()
+
+    multiplier = 1.0
+    for word, factor in _MULTIPLIERS.items():
+        if re.search(rf"\b{re.escape(word)}\b", lowered):
+            multiplier = factor
+            break
+
+    match = re.search(r"[-+]?(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|\.\d+|\d+)", cleaned)
+    if not match:
+        return None
+    try:
+        return float(match.group(0).replace(",", "")) * multiplier
+    except ValueError:
+        return None
+
+
+def _decimals_in(raw: str) -> int:
+    match = re.search(r"\.(\d+)", raw)
+    return len(match.group(1)) if match else 0
+
+
+def _is_policeable(claim: NumericClaim) -> bool:
+    """
+    Whether a number is a factual claim worth validating.
+
+    Bare small integers are excluded: "three facilities", "2 scenarios", "2026"
+    are counts, ordinals and years, not assertions about computed results.
+    Policing them would produce noise that hides the failures that matter.
+    Anything carrying a unit — %, currency, "units" — is always policed.
+    """
+    if claim.kind in (ClaimKind.PERCENTAGE, ClaimKind.CURRENCY,
+                      ClaimKind.UNITS, ClaimKind.RATIO, ClaimKind.UNKNOWN):
+        return True
+    return False   # bare COUNT
+
+
+def _proper_names(payload: Dict[str, Any]) -> List[str]:
+    """
+    The names the payload itself supplies, where they contain a digit.
+
+    A user names a scenario "Freight +15%" and a client names a site "DC 2".
+    Referring to one of those asserts nothing about a computed result, but the
+    digits inside it look exactly like a claim to an extractor reading prose.
+
+    Only `name`-shaped keys, and only values with a digit in them: everything
+    else is either not a name or cannot be mistaken for a figure.
+    """
+    found: List[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                lowered = str(key).lower()
+                if (isinstance(value, str) and value.strip()
+                        and (lowered == "name" or lowered.endswith("_name"))
+                        and any(ch.isdigit() for ch in value)):
+                    found.append(value.strip())
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(payload)
+    # Longest first, so "Demand +30% East" is masked before "Demand +30%".
+    return sorted(set(found), key=len, reverse=True)
+
+
+def _mask_names(text: str, names: List[str]) -> str:
+    """
+    Blank out each name, keeping every other character in place.
+
+    Same length, so a span found in the masked copy still indexes the original
+    — the claim's own raw text is read from the real narrative.
+    """
+    masked = text
+    for name in names:
+        if name in masked:
+            masked = masked.replace(name, " " * len(name))
+    return masked
+
+
+def extract_numeric_claims(
+    text: str, protected_names: Optional[List[str]] = None,
+) -> List[NumericClaim]:
+    """
+    Extract numeric claims from free-form narrative.
+
+    Secondary mechanism: the reasoning agent is asked for STRUCTURED claims
+    first (see `ReasoningAgent`). This covers the case where it returns prose
+    anyway, which a prompt-only gateway cannot prevent.
+
+    `protected_names` are proper names the payload supplied — a scenario or a
+    site whose name contains a digit. Numbers inside them are part of a name,
+    not assertions about results, and policing them struck a scenario's own
+    title out of the sentence that named it.
+    """
+    if not text:
+        return []
+
+    claims: List[NumericClaim] = []
+    # Searched in a copy with the names blanked; every span still indexes the
+    # ORIGINAL, so a claim's raw text is what the reader would have seen.
+    haystack = _mask_names(text, protected_names or [])
+
+    for match in _NUMBER_PATTERN.finditer(haystack):
+        start, end = match.span()
+        token = match.group(0)
+        trailing = text[end:end + 24]
+        preceding = text[max(0, start - 3):start]
+
+        # Classify by the markers around the number.
+        scale = _SCALE_PATTERN.match(trailing)
+        kind = ClaimKind.UNKNOWN
+        span_end = end
+
+        if _PERCENT_SUFFIX.match(trailing):
+            kind = ClaimKind.PERCENTAGE
+            span_end = end + _PERCENT_SUFFIX.match(trailing).end()
+        elif _UNIT_SUFFIX.match(trailing):
+            kind = ClaimKind.UNITS
+            span_end = end + _UNIT_SUFFIX.match(trailing).end()
+        elif any(sym in preceding for sym in _CURRENCY_SYMBOLS):
+            kind = ClaimKind.CURRENCY
+            # Keep any scale word in the span so "₹12.4 crore" is read as
+            # 124,000,000 rather than 12.4.
+            if scale:
+                span_end = end + scale.end()
+        elif scale:
+            kind = ClaimKind.CURRENCY
+            span_end = end + scale.end()
+        elif "." in token:
+            # A bare decimal: could be a ratio (0.94) or a formatted currency
+            # amount (1,000.00). Left UNKNOWN so it is compared against every
+            # fact kind rather than mis-typed and wrongly reported unsupported.
+            kind = ClaimKind.RATIO if abs(float(token.replace(",", ""))) <= 1.0 else ClaimKind.UNKNOWN
+        elif "," in token:
+            # A GROUPED NUMBER IS NOT A BARE COUNT.
+            #
+            # This branch exists because money stopped carrying cents. While
+            # every amount was printed as "216,594,606.26" the dot sent it to
+            # the UNKNOWN case above and it was policed; the moment the cents
+            # came off for readability the same figure fell through to COUNT,
+            # which `_is_policeable` deliberately ignores — so a model could
+            # assert "the cost is 216,594,606" and nothing checked it. The
+            # narrative came back NO_CLAIMS, which reads like a clean result
+            # and is actually the validator having been switched off.
+            #
+            # The exclusion that branch is FOR is bare small integers —
+            # "three facilities", "2 scenarios", "2026". None of those carries
+            # a thousands separator. A number that does is a quantity, and it
+            # is policed as UNKNOWN so it is compared against every fact kind.
+            kind = ClaimKind.UNKNOWN
+        else:
+            kind = ClaimKind.COUNT
+
+        raw = text[start:span_end].strip()
+        # Include a leading currency symbol in the raw text so replacement of an
+        # ungrounded claim removes the symbol too.
+        if kind == ClaimKind.CURRENCY:
+            for sym in _CURRENCY_SYMBOLS:
+                if preceding.endswith(sym) or preceding.endswith(sym + " "):
+                    raw = preceding[preceding.index(sym):] + raw
+                    break
+
+        value = _parse_number(raw)
+        if value is None:
+            continue
+
+        claims.append(NumericClaim(raw_text=raw, value=value, kind=kind))
+
+    return claims
+
+
+# ---------------------------------------------------------------------------
+# Grounding
+# ---------------------------------------------------------------------------
+
+def _matches(claim_value: float, fact_value: float, claim_raw: str) -> bool:
+    """Whether a claim matches an authoritative value within tolerance."""
+    if math.isclose(claim_value, fact_value,
+                    rel_tol=RELATIVE_TOLERANCE, abs_tol=ABSOLUTE_TOLERANCE):
+        return True
+
+    if ALLOW_ROUNDING_TO_CLAIM_PRECISION:
+        # "14%" legitimately rounds 14.3; "13%" does not.
+        decimals = _decimals_in(claim_raw)
+        if round(fact_value, decimals) == round(claim_value, decimals):
+            return True
+
+    return False
+
+
+def _comparable_facts(
+    claim: NumericClaim, facts: Dict[str, AuthoritativeFact],
+) -> List[AuthoritativeFact]:
+    """
+    Facts a claim could legitimately be referring to.
+
+    A ratio claim may also match a percentage fact (0.94 vs 94%) and vice
+    versa, because narratives move between the two freely.
+    """
+    # An unmarked number could refer to anything, so it is compared against
+    # every fact. Being permissive here avoids reporting a legitimate figure as
+    # unsupported merely because the narrative omitted a unit.
+    if claim.kind == ClaimKind.UNKNOWN:
+        return list(facts.values())
+
+    kinds = {claim.kind}
+    if claim.kind in (ClaimKind.RATIO, ClaimKind.PERCENTAGE):
+        kinds |= {ClaimKind.RATIO, ClaimKind.PERCENTAGE}
+    if claim.kind == ClaimKind.UNITS:
+        kinds |= {ClaimKind.COUNT, ClaimKind.CURRENCY}
+    if claim.kind == ClaimKind.CURRENCY:
+        kinds |= {ClaimKind.UNITS}
+    return [f for f in facts.values() if f.kind in kinds]
+
+
+def ground_claims(
+    claims: List[NumericClaim],
+    facts: Dict[str, AuthoritativeFact],
+    *,
+    provenance: Optional[Dict[str, str]] = None,
+) -> GroundingReport:
+    """
+    Adjudicate every claim against the authoritative facts.
+
+    Args:
+        claims:     Extracted or structured claims.
+        facts:      Authoritative values, from `build_authoritative_facts`.
+        provenance: execution/snapshot/scenario ids attached to accepted claims.
+
+    Returns:
+        GroundingReport. `status` is GROUNDING_FAILED if any claim is
+        contradicted or unsupported.
+    """
+    prov = dict(provenance or {})
+    report = GroundingReport()
+
+    for claim in claims:
+        if not _is_policeable(claim):
+            claim.verdict = ClaimVerdict.IGNORED
+            claim.detail = "bare count/ordinal — not a claim about computed results"
+            report.claims.append(claim)
+            continue
+
+        candidates = _comparable_facts(claim, facts)
+
+        if not candidates:
+            claim.verdict = ClaimVerdict.UNSUPPORTED
+            claim.detail = (
+                f"no authoritative {claim.kind.value.lower()} value exists in the "
+                f"deterministic results, so this figure has no basis"
+            )
+            report.claims.append(claim)
+            continue
+
+        # Percentage/ratio claims may be expressed either way.
+        match: Optional[AuthoritativeFact] = None
+        for fact in candidates:
+            for candidate_value in _equivalent_values(claim, fact):
+                if _matches(claim.value, candidate_value, claim.raw_text):
+                    match = fact
+                    break
+            if match:
+                break
+
+        if match is not None:
+            claim.verdict = ClaimVerdict.GROUNDED
+            claim.matched_fact = match.key
+            claim.matched_value = match.value
+            claim.source = match.source
+            claim.provenance = {**prov, "source": match.source, "fact": match.key}
+            report.claims.append(claim)
+            continue
+
+        # Nothing matched. Distinguish the two failure modes:
+        #   CONTRADICTED — a value of this KIND exists and the claim disagrees
+        #                  (the model misreported a real figure).
+        #   UNSUPPORTED  — no value of this kind exists at all
+        #                  (the model invented a figure from nothing).
+        # Comparison is deliberately cross-kind (0.968 may be written "96.8%"),
+        # but the VERDICT keys on same-kind availability, so "cost rose 12%"
+        # against a payload holding only an REI is correctly unsupported rather
+        # than contradicted by an unrelated number.
+        same_kind = [f for f in candidates if f.kind == claim.kind]
+        if claim.kind == ClaimKind.UNKNOWN:
+            same_kind = candidates
+
+        # A configured threshold may be CITED but is never the value a wrong
+        # claim is measured against.
+        #
+        # It is a percentage, so without this a fabricated "cost increases by
+        # 12%" was reported as CONTRADICTED by `utilization_under_pct = 30` —
+        # a threshold about something else entirely. That verdict tells a reader
+        # nothing, and it destroys the distinction this function is careful
+        # about: CONTRADICTED means the model misreported a real MEASUREMENT,
+        # UNSUPPORTED means it invented a figure from nothing. A claim with no
+        # measurement to compare against is the second kind, whatever policy
+        # constants happen to share its unit.
+        same_kind = [f for f in same_kind
+                     if f.source not in _CITABLE_ONLY_SOURCES]
+
+        if not same_kind:
+            claim.verdict = ClaimVerdict.UNSUPPORTED
+            claim.detail = (
+                f"no authoritative {claim.kind.value.lower()} value exists in the "
+                f"deterministic results, so this figure has no basis"
+            )
+        else:
+            nearest = min(same_kind, key=lambda f: abs(f.value - claim.value))
+            claim.verdict = ClaimVerdict.CONTRADICTED
+            claim.matched_fact = nearest.key
+            claim.matched_value = nearest.value
+            claim.source = nearest.source
+            claim.detail = (
+                f"claimed {claim.value} but the nearest authoritative value is "
+                f"{nearest.value} ({nearest.key})"
+            )
+
+        report.claims.append(claim)
+
+    report.status = "GROUNDING_FAILED" if report.failed else (
+        "NO_CLAIMS" if not [c for c in report.claims
+                            if c.verdict != ClaimVerdict.IGNORED]
+        else "GROUNDED"
+    )
+
+    if report.failed:
+        logger.warning(
+            "orchestrator.grounding.failed contradicted=%d unsupported=%d",
+            len(report.contradicted), len(report.unsupported),
+        )
+    return report
+
+
+def _equivalent_values(claim: NumericClaim, fact: AuthoritativeFact) -> List[float]:
+    """
+    Representations of a fact a claim might legitimately use.
+
+    A fill rate stored as 0.968 may be written "96.8%"; an REI of 1.0 may be
+    written "100%". Both are the same assertion.
+    """
+    values = [fact.value]
+    if fact.kind == ClaimKind.RATIO and claim.kind == ClaimKind.PERCENTAGE:
+        values.append(fact.value * 100.0)
+    if fact.kind == ClaimKind.PERCENTAGE and claim.kind == ClaimKind.RATIO:
+        values.append(fact.value / 100.0)
+
+    # The MAGNITUDE of a signed fact.
+    #
+    # Prose states a direction in words and a quantity in digits — "the scenario
+    # DECREASES business cost by 8,506,746.48" — while the fact holds
+    # −8,506,746.48. Without this, +8,506,746.48 did not match −8,506,746.48,
+    # the nearest same-kind currency fact was picked instead, and the claim was
+    # reported as CONTRADICTED. That happened on EVERY cost-reducing scenario:
+    # the whole briefing was marked GROUNDING_FAILED, its confidence dropped to
+    # LOW, and the figure was stripped out of the sentence — for the outcome a
+    # planner is looking for.
+    #
+    # This does not weaken the check. The validator polices magnitudes, not
+    # adjectives: it has never verified the word "increases" against the sign,
+    # and accepting the magnitude of the very fact being cited is narrower than
+    # what it already does for a ratio written as a percentage.
+    if fact.value < 0:
+        values.append(abs(fact.value))
+        if fact.kind == ClaimKind.RATIO and claim.kind == ClaimKind.PERCENTAGE:
+            values.append(abs(fact.value) * 100.0)
+        if fact.kind == ClaimKind.PERCENTAGE and claim.kind == ClaimKind.RATIO:
+            values.append(abs(fact.value) / 100.0)
+    return values
+
+
+def ground_narrative(
+    text: str,
+    payload: Dict[str, Any],
+    *,
+    provenance: Optional[Dict[str, str]] = None,
+    structured_claims: Optional[List[Dict[str, Any]]] = None,
+) -> GroundingReport:
+    """
+    Ground a narrative against deterministic results.
+
+    Prefers structured claims when the agent supplied them; otherwise falls back
+    to extraction from prose.
+    """
+    facts = build_authoritative_facts(payload)
+
+    claims: List[NumericClaim] = []
+    if structured_claims:
+        for raw in structured_claims:
+            if not isinstance(raw, dict):
+                continue
+            try:
+                value = float(raw.get("value"))
+            except (TypeError, ValueError):
+                continue
+            unit = str(raw.get("unit", "")).lower()
+            kind = (
+                ClaimKind.PERCENTAGE if "percent" in unit or unit == "%"
+                else ClaimKind.CURRENCY if unit in ("currency", "inr", "usd", "eur")
+                else ClaimKind.UNITS if unit in ("units", "kg", "tonnes")
+                else ClaimKind.RATIO
+            )
+            claims.append(NumericClaim(
+                raw_text=str(raw.get("text") or raw.get("type") or value),
+                value=value, kind=kind,
+            ))
+
+    claims.extend(extract_numeric_claims(text, _proper_names(payload)))
+    return ground_claims(claims, facts, provenance=provenance)
+
+
+def strip_ungrounded_claims(text: str, report: GroundingReport) -> str:
+    """
+    Neutralise ungrounded figures in narrative.
+
+    Replacement rather than deletion: a reader must be able to see that a number
+    was removed and why, instead of silently reading a sentence that has quietly
+    lost its quantity.
+    """
+    result = text
+    for claim in report.contradicted:
+        result = result.replace(
+            claim.raw_text,
+            f"[UNGROUNDED CLAIM REMOVED — authoritative {claim.matched_fact} = "
+            f"{claim.matched_value}]",
+        )
+    for claim in report.unsupported:
+        result = result.replace(
+            claim.raw_text, "[UNSUPPORTED FIGURE REMOVED]",
+        )
+    return result

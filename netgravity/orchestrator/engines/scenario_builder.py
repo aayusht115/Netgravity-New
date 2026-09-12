@@ -1,0 +1,752 @@
+"""
+Orchestrator — Scenario materialisation.
+
+Turns a validated `ScenarioIntentSpec` into a hypothetical `CanonicalNetwork`,
+reusing NetGravity's existing `ScenarioEngine` override semantics rather than
+reimplementing them.
+
+Isolation is the whole point of this module:
+
+    observed snapshot  --(deep copy)-->  scenario network  --> stored separately
+
+The parent snapshot is never mutated. Two scenarios built from the same parent
+share nothing. There is deliberately no path back from a scenario network into
+the snapshot store.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, List, Optional, Tuple
+
+from netgravity.schemas.network import (
+    CanonicalNetwork,
+    FacilityRecord,
+    FacilityStatus,
+    NodeRole,
+)
+from netgravity.schemas.scenario import FacilityChange, Scenario
+
+from netgravity.orchestrator.exceptions import InvalidScenarioError
+from netgravity.orchestrator.schemas.requests import ScenarioActionType, ScenarioIntentSpec
+
+logger = logging.getLogger(__name__)
+
+MARKET_ROLES = {NodeRole.MARKET, NodeRole.CUSTOMER}
+
+
+#: The schema's "no capacity stated" default is 1e12, and production capacity
+#: treats anything at or above 1e11 as "not set". Neither is a size, so neither
+#: can anchor a price per unit of capacity.
+_UNSTATED_CAPACITY = 1e11
+
+
+def capacity_fixed_cost(fixed_cost_per_year: float, current_capacity: float,
+                        new_capacity: float) -> float:
+    """
+    A site's annual fixed cost once its capacity has changed.
+
+    WHY THIS EXISTS
+    ---------------
+    A capacity scenario used to change the ceiling and nothing else, so on the
+    model's terms capacity was free. Measured on a complete upload: +20,000
+    units at a DC carrying C$38.4M a year left a C$701,441,045.37 network at
+    C$701,441,045.37, to the cent. More room can only ever let the solver find
+    a plan at least as cheap, so every capacity scenario read as "costs
+    nothing, may save something" — which no expansion does.
+
+    THE ASSUMPTION, stated rather than hidden
+    ------------------------------------------
+    Added capacity costs what the site's existing capacity costs per unit: the
+    fixed cost scales pro rata with the new ceiling. That is the linear
+    fixed-cost-per-unit-of-capacity reading of a capacitated site, and it is
+    the only price the upload itself supports; nothing in it states a separate
+    expansion rate.
+
+    A REDUCTION KEEPS ITS COST. Capacity lost to a disruption, a lease still
+    being paid, or a line down for maintenance does not hand its fixed cost
+    back, so the cheaper reading is not assumed on the client's behalf.
+
+    A site with no fixed cost in the upload stays at zero. The caller reports
+    that as unpriced; it is never presented as a price.
+    """
+    fixed = float(fixed_cost_per_year or 0.0)
+    current = float(current_capacity or 0.0)
+    new = float(new_capacity or 0.0)
+    if (fixed <= 0.0 or current <= 0.0 or current >= _UNSTATED_CAPACITY
+            or new <= current):
+        return fixed
+    return fixed * (new / current)
+
+
+def planned_capacity(fac: Any, *, multiplier: Optional[float] = None,
+                     delta_units: Optional[float] = None,
+                     set_units: Optional[float] = None,
+                     limit: Optional[str] = None) -> Tuple[float, float]:
+    """
+    `(handling_after, production_after)` for one site — the one definition the
+    builder applies, the validator checks and the API prices.
+
+    A plant has two limits, and the uploaded capacity is written into both. So:
+
+      * the ORDINARY change moves handling, and moves production with it where
+        the two were that one uploaded figure — otherwise the minimum never
+        moved and a plant expansion changed nothing;
+      * "BOTH" moves both, "HANDLING" only handling, "PRODUCTION" only
+        production (a plant with no production figure of its own takes its
+        handling capacity as the starting point).
+    """
+    def apply(current: float) -> float:
+        if multiplier is not None:
+            return current * multiplier
+        if set_units is not None:
+            return float(set_units)
+        return current + float(delta_units or 0.0)
+
+    kind = (limit or "").strip().upper() or None
+    handling = float(getattr(fac, "capacity_units_per_period", 0.0) or 0.0)
+    raw = getattr(fac, "production_capacity_units_per_period", None)
+    production = float(raw) if raw is not None else 1e12
+    stated = bool(getattr(fac, "is_plant_or_supplier", False)) and production < _UNSTATED_CAPACITY
+    same = stated and abs(production - handling) <= 1e-6 * max(1.0, abs(handling))
+
+    if kind == "PRODUCTION":
+        return handling, apply(production if stated else handling)
+    if kind == "HANDLING":
+        return apply(handling), production
+    if kind == "BOTH":
+        return apply(handling), (apply(production) if stated else production)
+    return apply(handling), (apply(production) if same else production)
+
+
+def usable_capacity(fac: Any, handling: float, production: float) -> float:
+    """What a site can actually ship per period given both of its limits."""
+    if (bool(getattr(fac, "is_plant_or_supplier", False))
+            and production < _UNSTATED_CAPACITY):
+        return min(handling, production)
+    return handling
+
+
+class ScenarioBuilder:
+    """Materialises hypothetical networks from validated specs."""
+
+    def build(
+        self,
+        base_network: CanonicalNetwork,
+        spec: ScenarioIntentSpec,
+    ) -> Tuple[CanonicalNetwork, List[str]]:
+        """
+        Apply a scenario spec to a COPY of the base network.
+
+        Args:
+            base_network: Observed (or parent) network. Never mutated.
+            spec:         Already validated by `ScenarioValidator`.
+
+        Returns:
+            (scenario_network, human-readable override descriptions)
+
+        Raises:
+            InvalidScenarioError: the action is unsupported or cannot be applied.
+        """
+        # Defensive copy: the caller's network — and the stored snapshot it may
+        # have come from — must be untouchable from here.
+        working = base_network.model_copy(deep=True)
+        overrides: List[str] = []
+
+        if spec.action == ScenarioActionType.CLOSE_FACILITY:
+            working, overrides = self._close(working, spec.facility_ids)
+        elif spec.action == ScenarioActionType.OPEN_FACILITY:
+            working, overrides = self._open(working, spec.facility_ids)
+        elif spec.action == ScenarioActionType.CHANGE_CAPACITY:
+            working, overrides = self._change_capacity(
+                working, spec.facility_ids, spec.capacity_multiplier,
+                spec.capacity_delta_units, spec.capacity_set_units,
+                limit=spec.capacity_limit,
+                recurring_cost_per_year=spec.expansion_fixed_cost_per_year,
+            )
+        elif spec.action == ScenarioActionType.CHANGE_DEMAND:
+            working, overrides = self._change_demand(
+                working, spec.demand_multiplier,
+                spec.demand_region, spec.demand_product_category,
+            )
+        elif spec.action == ScenarioActionType.SHIFT_VOLUME:
+            working, overrides = self._shift_volume(
+                working, spec.facility_ids, spec.target_facility_id,
+            )
+        elif spec.action == ScenarioActionType.ADD_FACILITY:
+            working, overrides = self._add_facility(working, spec)
+        elif spec.action == ScenarioActionType.CHANGE_TRANSPORT_COST:
+            working, overrides = self._change_transport_cost(
+                working, spec.facility_ids, spec.transport_cost_multiplier,
+            )
+        elif spec.action == ScenarioActionType.CHANGE_SLA:
+            working, overrides = self._change_sla(working, spec.sla_days_delta)
+        else:  # pragma: no cover - enum is exhaustive above
+            raise InvalidScenarioError(
+                f"Unsupported scenario action '{spec.action.value}'.",
+                context={"action": spec.action.value},
+            )
+
+        # Everything the user did NOT ask to close stays open. See
+        # `_hold_the_existing_footprint`.
+        working = self._hold_the_existing_footprint(working)
+
+        logger.info(
+            "orchestrator.scenario.materialised action=%s overrides=%s",
+            spec.action.value, overrides,
+        )
+        return working, overrides
+
+    # ------------------------------------------------------------------
+    # The footprint a scenario is allowed to change
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _hold_the_existing_footprint(
+        network: CanonicalNetwork,
+    ) -> CanonicalNetwork:
+        """
+        Pin every still-open existing site open, so only the USER closes sites.
+
+        WHY
+        ---
+        A scenario is solved as `BROWNFIELD_SCENARIO_OPTIMIZATION`, which
+        honours facility flags exactly as supplied — and an uploaded network
+        supplies `is_closable = True` by default. So the MILP was free to shut
+        any site it found cheaper to shut, and it did: a planner who asked
+        "what if demand in the west grows 20%?" got back a plan that had also
+        closed two DCs they never mentioned. The cost delta they were reading
+        was mostly the closures, not the question they asked.
+
+        That is a footprint DECISION, and a footprint decision is something a
+        planner makes deliberately — by closing a site in a scenario, or by
+        running a greenfield design — not something a what-if quietly performs
+        on the way to answering a different question.
+
+        WHAT IT DOES NOT DO
+        -------------------
+        It only ever sets `is_mandatory` / `is_closable`. In particular:
+
+          * a site the scenario itself closed keeps `is_forced_closed = True`
+            and is skipped, so the user's own closure still stands — and still
+            pays closure cost, because `baseline_status` is untouched;
+          * a CANDIDATE is not pinned. Offering the solver a site is not the
+            same as opening one, and forcing a proposed DC open would answer a
+            question nobody asked;
+          * a site already forced closed in the uploaded data stays closed;
+          * a disruption target is never pinned open — an outage is the whole
+            point of the run that carries one;
+          * markets and customers are never touched: they are demand, not
+            footprint.
+
+        Nothing else in the system changes. `GREENFIELD_OPTIMIZATION` still
+        releases the footprint through its own mode policy, and this method is
+        not on that path — it applies to scenarios, which is where the
+        unrequested closures were appearing.
+        """
+        held: List[str] = []
+        facilities: List[FacilityRecord] = []
+        for fac in network.facilities:
+            if (fac.role not in MARKET_ROLES
+                    and fac.effective_baseline_status == FacilityStatus.EXISTING
+                    and fac.status != FacilityStatus.CLOSED
+                    and not fac.is_forced_closed
+                    and not fac.is_disruption_target
+                    and fac.is_closable):
+                facilities.append(fac.model_copy(update={
+                    "is_mandatory": True,
+                    "is_closable": False,
+                }))
+                held.append(fac.id)
+            else:
+                facilities.append(fac)
+
+        if held:
+            logger.info(
+                "orchestrator.scenario.footprint_held count=%d ids=%s",
+                len(held), ",".join(held[:10]),
+            )
+        return network.model_copy(update={"facilities": facilities})
+
+    # ------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------
+
+    def _close(
+        self, network: CanonicalNetwork, facility_ids: List[str],
+    ) -> Tuple[CanonicalNetwork, List[str]]:
+        """
+        Close facilities via the existing ScenarioEngine.
+
+        Delegated rather than hand-rolled so closure economics behave
+        identically to every other closure in the system — in particular the
+        engine preserves `baseline_status`, which is what lets the MILP charge
+        closure cost for an EXISTING facility whose `status` it overwrites.
+        """
+        from netgravity.scenarios.engine import ScenarioEngine
+
+        scenario = Scenario(
+            scenario_id="orchestrator_close",
+            scenario_name="Close facilities",
+            facility_changes=[
+                FacilityChange(facility_id=fid, action="CLOSE") for fid in facility_ids
+            ],
+        )
+        engine = ScenarioEngine()
+        try:
+            modified = engine._apply_overrides(network, scenario)  # noqa: SLF001
+        except AttributeError:
+            modified = self._close_manually(network, facility_ids)
+        except Exception as exc:  # noqa: BLE001
+            raise InvalidScenarioError(
+                f"Failed to apply closure scenario: {exc}",
+                context={"facility_ids": facility_ids}, cause=exc,
+            ) from exc
+
+        return modified, [f"CLOSE_FACILITY {fid}" for fid in facility_ids]
+
+    @staticmethod
+    def _close_manually(
+        network: CanonicalNetwork, facility_ids: List[str],
+    ) -> CanonicalNetwork:
+        """
+        Fallback closure if the engine's private override hook moves.
+
+        Mirrors the engine's semantics exactly, including preserving
+        `baseline_status` so closure economics still price the transition.
+        """
+        targets = set(facility_ids)
+        facilities = []
+        for fac in network.facilities:
+            if fac.id in targets:
+                facilities.append(fac.model_copy(update={
+                    "baseline_status": fac.baseline_status or fac.status,
+                    "status": FacilityStatus.CLOSED,
+                    "is_forced_closed": True,
+                    "is_mandatory": False,
+                    "is_closable": True,
+                    "capacity_units_per_period": 0.0,
+                    "production_capacity_units_per_period": 0.0,
+                    "min_throughput_per_period": 0.0,
+                }))
+            else:
+                facilities.append(fac)
+        return network.model_copy(update={"facilities": facilities})
+
+    @staticmethod
+    def _open(
+        network: CanonicalNetwork, facility_ids: List[str],
+    ) -> Tuple[CanonicalNetwork, List[str]]:
+        targets = set(facility_ids)
+        facilities = [
+            fac.model_copy(update={
+                "is_forced_closed": False,
+                "is_mandatory": True,
+                "is_closable": False,
+            }) if fac.id in targets else fac
+            for fac in network.facilities
+        ]
+        return (network.model_copy(update={"facilities": facilities}),
+                [f"OPEN_FACILITY {fid}" for fid in facility_ids])
+
+    @staticmethod
+    def _change_capacity(
+        network: CanonicalNetwork,
+        facility_ids: List[str],
+        multiplier: Optional[float],
+        delta_units: Optional[float] = None,
+        set_units: Optional[float] = None,
+        *,
+        limit: Optional[str] = None,
+        recurring_cost_per_year: Optional[float] = None,
+    ) -> Tuple[CanonicalNetwork, List[str]]:
+        """
+        Scale capacity by a ratio, shift it by units, or set it outright — at
+        the limit the caller names, at the price the caller states.
+
+        The three forms are kept distinct all the way down. "Reduce by 2,000"
+        and "set to 2,000" coincide only by accident, and collapsing one into
+        the other requires knowing the current capacity — so a wrong guess
+        changes the answer rather than degrading it.
+
+        WHAT MOVES: see `planned_capacity`. WHAT IT COSTS: a stated recurring
+        cost is added to the site's fixed cost as stated; otherwise the capacity
+        the site can actually USE is priced pro rata to its existing fixed cost
+        (`capacity_fixed_cost`) — so raising a limit that does not bind costs
+        nothing and buys nothing, and the description says which limit binds.
+        MONTHLY AVAILABILITY moves with the handling capacity, in proportion, so
+        an expansion is not held at last year's available figure.
+
+        Exactly one form applies; `ScenarioValidator` has already rejected
+        several and none, and has already refused a change that would go
+        negative.
+        """
+        supplied = [v for v in (multiplier, delta_units, set_units) if v is not None]
+        if not supplied:
+            raise InvalidScenarioError(
+                "CHANGE_CAPACITY requires a capacity_multiplier, "
+                "capacity_delta_units or capacity_set_units.",
+                context={"facility_ids": facility_ids},
+            )
+        if len(supplied) > 1:
+            raise InvalidScenarioError(
+                "CHANGE_CAPACITY accepts exactly one of capacity_multiplier, "
+                "capacity_delta_units or capacity_set_units.",
+                context={"facility_ids": facility_ids},
+            )
+
+        targets = set(facility_ids)
+        kind = (limit or "").strip().upper() or None
+
+        def changed(fac: FacilityRecord) -> FacilityRecord:
+            handling = fac.capacity_units_per_period
+            production = fac.production_capacity_units_per_period
+            new_handling, new_production = planned_capacity(
+                fac, multiplier=multiplier, delta_units=delta_units,
+                set_units=set_units, limit=kind)
+            before = usable_capacity(fac, handling, production)
+            after = usable_capacity(fac, new_handling, new_production)
+            if recurring_cost_per_year is not None:
+                fixed = float(fac.fixed_cost_per_year) + float(recurring_cost_per_year)
+            else:
+                fixed = capacity_fixed_cost(fac.fixed_cost_per_year, before, after)
+            update: Dict[str, Any] = {
+                "capacity_units_per_period": new_handling,
+                "production_capacity_units_per_period": new_production,
+                "fixed_cost_per_year": fixed,
+            }
+            if fac.capacity_by_period and handling > 0 and new_handling != handling:
+                ratio = new_handling / handling
+                update["capacity_by_period"] = {
+                    k: max(float(v) * ratio, 0.0)
+                    for k, v in fac.capacity_by_period.items()}
+            return fac.model_copy(update=update)
+
+        before = {fac.id: fac for fac in network.facilities}
+        facilities = [changed(fac) if fac.id in targets else fac
+                      for fac in network.facilities]
+        after = {fac.id: fac for fac in facilities}
+
+        def describe(fid: str) -> str:
+            if multiplier is not None:
+                text = f"CHANGE_CAPACITY {fid} x{multiplier}"
+            elif set_units is not None:
+                text = f"CHANGE_CAPACITY {fid} = {float(set_units):,.0f} units/period"
+            else:
+                text = f"CHANGE_CAPACITY {fid} {float(delta_units):+,.0f} units/period"
+            if kind:
+                text += f" ({kind.lower()} limit)"
+            was, now = before.get(fid), after.get(fid)
+            if was is None or now is None:
+                return text
+            if now.fixed_cost_per_year != was.fixed_cost_per_year:
+                basis = ("as stated" if recurring_cost_per_year is not None
+                         else "pro rata to capacity")
+                text += (f"; fixed cost {was.fixed_cost_per_year:,.0f} -> "
+                         f"{now.fixed_cost_per_year:,.0f} per year, {basis}")
+            separate = now.production_limit()
+            if separate is not None and separate < now.capacity_units_per_period:
+                text += (f"; production capacity {separate:,.0f} "
+                         f"units/period still limits it")
+            elif separate is not None and separate > now.capacity_units_per_period:
+                text += (f"; handling capacity "
+                         f"{now.capacity_units_per_period:,.0f} units/period "
+                         f"still limits it")
+            if now.capacity_by_period != was.capacity_by_period:
+                text += "; monthly available capacity scaled in proportion"
+            return text
+
+        overrides = [describe(fid) for fid in facility_ids]
+        return network.model_copy(update={"facilities": facilities}), overrides
+
+    @staticmethod
+    def _change_demand(
+        network: CanonicalNetwork,
+        multiplier: Optional[float],
+        region: Optional[str] = None,
+        category: Optional[str] = None,
+    ) -> Tuple[CanonicalNetwork, List[str]]:
+        """
+        Scale demand, optionally only where the client says it is growing.
+
+        With no region and no category this is exactly what it always was — a
+        multiplier on every demand row. Naming either narrows the rows it
+        touches; naming both narrows to their intersection. Rows outside the
+        scope are copied through untouched rather than scaled by 1.0, so a
+        scoped scenario and an unscoped one cannot be told apart only by
+        rounding.
+        """
+        if multiplier is None:
+            raise InvalidScenarioError("CHANGE_DEMAND requires a demand_multiplier.")
+
+        want_region = (region or "").strip().lower() or None
+        want_category = (category or "").strip().lower() or None
+
+        # Markets in the named region, and products in the named category. Both
+        # resolved from the network's own labels — nothing here infers that
+        # "North" contains Delhi, because the upload already said so.
+        in_region = None
+        if want_region is not None:
+            in_region = {
+                f.id for f in network.facilities
+                if (f.region or "").strip().lower() == want_region
+            }
+        in_category = None
+        if want_category is not None:
+            in_category = {
+                p.id for p in network.products
+                if (p.category or "").strip().lower() == want_category
+            }
+
+        def in_scope(d) -> bool:
+            if in_region is not None and d.market_id not in in_region:
+                return False
+            if in_category is not None and d.product_id not in in_category:
+                return False
+            return True
+
+        touched = 0
+        demands = []
+        for d in network.demands:
+            if in_scope(d):
+                touched += 1
+                demands.append(d.model_copy(update={"quantity": d.quantity * multiplier}))
+            else:
+                demands.append(d)
+
+        scope = "all"
+        if want_region and want_category:
+            scope = f"region={region} category={category}"
+        elif want_region:
+            scope = f"region={region}"
+        elif want_category:
+            scope = f"category={category}"
+
+        return (network.model_copy(update={"demands": demands}),
+                [f"CHANGE_DEMAND {scope} x{multiplier} ({touched} rows)"])
+
+    def _add_facility(
+        self,
+        network: CanonicalNetwork,
+        spec: ScenarioIntentSpec,
+    ) -> Tuple[CanonicalNetwork, List[str]]:
+        """
+        Introduce a site the client does not operate today.
+
+        Delegated to `ScenarioEngine` for the same reason `_close` is: the
+        engine already knows how to connect a new node to a network — inbound
+        lanes from every plant, outbound lanes to every market, each priced at
+        the NETWORK'S OWN average rate per km over its existing road lanes and
+        the haversine distance between the two points. Deriving the rate from
+        the client's own freight instead of a constant is what makes the answer
+        theirs; re-deriving it here would be a second implementation of a
+        transport tariff, which is exactly what must not happen.
+
+        The site is added as a CANDIDATE the MILP may leave shut, not as a
+        facility pinned open. If opening it does not pay, the solver says so by
+        not opening it — which is the answer the user is asking for.
+        """
+        from netgravity.scenarios.engine import ScenarioEngine
+
+        site = spec.new_facility
+        if site is None:  # pragma: no cover — the validator refuses first
+            raise InvalidScenarioError("ADD_FACILITY requires a new_facility.")
+
+        role = NodeRole.PLANT if site.role.upper() == "PLANT" else NodeRole.DC
+        facility_id = self._greenfield_id(network, site.name)
+        capacity = float(site.capacity_units_per_period)
+
+        new_facility = FacilityRecord(
+            id=facility_id,
+            name=site.name.strip(),
+            role=role,
+            # CANDIDATE, not EXISTING: it is not operating, and the opening cost
+            # must be charged if the solver decides to use it.
+            status=FacilityStatus.CANDIDATE,
+            latitude=float(site.latitude),
+            longitude=float(site.longitude),
+            capacity_units_per_period=capacity,
+            # A DC keeps the schema's "not a producer" default (1e12).
+            #
+            # This said `0.0` for anything that is not a plant, reading
+            # "produces nothing" — but the field means "may not SHIP more than
+            # this", and the MILP's capacity constraint takes the smaller of the
+            # two limits. Every greenfield DC was therefore pinned to zero
+            # outbound flow: it appeared in the solve, reported its capacity,
+            # and could not carry a single unit or ever be opened. A free
+            # 100,000-unit DC placed on top of an unserved market stayed shut
+            # while 8,733 units of that market's demand went unserved at a
+            # penalty of ₹1,000,000 each.
+            production_capacity_units_per_period=(
+                capacity if role is NodeRole.PLANT else 1e12),
+            fixed_cost_per_year=float(site.fixed_cost_per_year),
+            handling_cost_per_unit=float(site.handling_cost_per_unit),
+            is_closable=True,
+            is_mandatory=False,
+            is_forced_closed=False,
+        )
+
+        scenario = Scenario(
+            scenario_id="orchestrator_add_facility",
+            scenario_name=f"Open {new_facility.name}",
+            facility_changes=[FacilityChange(
+                facility_id=facility_id, action="ADD_FACILITY",
+                new_facility=new_facility,
+            )],
+        )
+        engine = ScenarioEngine()
+        try:
+            modified = engine._apply_overrides(network, scenario)  # noqa: SLF001
+        except Exception as exc:  # noqa: BLE001
+            raise InvalidScenarioError(
+                f"The new site '{site.name}' could not be connected to this "
+                f"network: {exc}",
+                context={"facility_id": facility_id,
+                         "latitude": site.latitude, "longitude": site.longitude},
+                cause=exc,
+            ) from exc
+
+        new_lanes = len(modified.lanes) - len(network.lanes)
+        return modified, [
+            f"ADD_FACILITY {facility_id} '{new_facility.name}' "
+            f"({site.latitude:.4f}, {site.longitude:.4f}) "
+            f"capacity {capacity:,.0f} units/period, {new_lanes} lanes derived"
+        ]
+
+    @staticmethod
+    def _greenfield_id(network: CanonicalNetwork, name: str) -> str:
+        """
+        A stable, readable id that cannot collide with an existing facility.
+
+        Derived from the name the user typed rather than a UUID, so the site is
+        recognisable everywhere it appears — the map tooltip, the comparison
+        table, the audit trail.
+        """
+        slug = "".join(ch if ch.isalnum() else "_" for ch in name.strip().upper())
+        slug = "_".join(part for part in slug.split("_") if part)[:24] or "SITE"
+        taken = {f.id for f in network.facilities}
+        candidate = f"NEW_{slug}"
+        suffix = 2
+        while candidate in taken:
+            candidate = f"NEW_{slug}_{suffix}"
+            suffix += 1
+        return candidate
+
+    @staticmethod
+    def _change_transport_cost(
+        network: CanonicalNetwork,
+        facility_ids: List[str],
+        multiplier: Optional[float],
+    ) -> Tuple[CanonicalNetwork, List[str]]:
+        """
+        Scale freight rates on the lanes in scope.
+
+        `rate_per_km` moves with `rate_per_unit` where the lane carries one, so
+        a later relocation re-derives its distance cost from the scenario's
+        rates rather than reverting to the baseline's.
+
+        Naming facilities narrows this to the lanes touching them — "our Pune
+        carrier raised rates" is a real question, and applying it network-wide
+        would answer a different one.
+        """
+        if multiplier is None:  # pragma: no cover — the validator refuses first
+            raise InvalidScenarioError(
+                "CHANGE_TRANSPORT_COST requires a transport_cost_multiplier.")
+
+        targets = set(facility_ids)
+
+        def in_scope(lane) -> bool:
+            if not targets:
+                return True
+            return lane.origin_id in targets or lane.destination_id in targets
+
+        touched = 0
+        lanes = []
+        for lane in network.lanes:
+            if not in_scope(lane):
+                lanes.append(lane)
+                continue
+            touched += 1
+            update = {"rate_per_unit": lane.rate_per_unit * multiplier}
+            if lane.rate_per_km is not None:
+                update["rate_per_km"] = lane.rate_per_km * multiplier
+            lanes.append(lane.model_copy(update=update))
+
+        if touched == 0:
+            raise InvalidScenarioError(
+                f"No lane in this network touches {sorted(targets)}, so there is "
+                f"no freight rate to change.",
+                context={"facility_ids": sorted(targets)},
+            )
+
+        scope = f"lanes touching {sorted(targets)}" if targets else "every lane"
+        return network.model_copy(update={"lanes": lanes}), [
+            f"CHANGE_TRANSPORT_COST x{multiplier} on {scope} ({touched} lanes)"
+        ]
+
+    @staticmethod
+    def _change_sla(
+        network: CanonicalNetwork,
+        days_delta: Optional[float],
+    ) -> Tuple[CanonicalNetwork, List[str]]:
+        """
+        Tighten or relax the delivery promise by a number of days.
+
+        Refuses outright when no demand row states an SLA. The alternative —
+        applying the change to nothing and returning a "scenario" identical to
+        the baseline — reports a change that did not happen, and the user reads
+        the unchanged cost as evidence that tightening service is free.
+        """
+        if days_delta is None:  # pragma: no cover — the validator refuses first
+            raise InvalidScenarioError("CHANGE_SLA requires an sla_days_delta.")
+
+        stated = [d for d in network.demands if d.sla_days is not None]
+        if not stated:
+            raise InvalidScenarioError(
+                "No demand row in this network states an SLA in days, so there "
+                "is no delivery promise to tighten or relax. Add an SLA column "
+                "to the demand data to run this scenario.",
+                context={"demand_rows": len(network.demands)},
+            )
+
+        demands = [
+            d.model_copy(update={"sla_days": max(0.0, d.sla_days + days_delta)})
+            if d.sla_days is not None else d
+            for d in network.demands
+        ]
+        return network.model_copy(update={"demands": demands}), [
+            f"CHANGE_SLA {days_delta:+.1f} days on {len(stated)} of "
+            f"{len(network.demands)} demand rows"
+        ]
+
+    def _shift_volume(
+        self,
+        network: CanonicalNetwork,
+        source_ids: List[str],
+        target_id: Optional[str],
+    ) -> Tuple[CanonicalNetwork, List[str]]:
+        """
+        Shift a facility's volume to another by closing the source.
+
+        The MILP then reallocates optimally, which is a more honest model of
+        "shift Delhi's volume to Kolkata" than hand-assigning flows: the
+        optimizer decides how the network actually absorbs it. The target is
+        pinned open so it is genuinely available to receive the volume.
+        """
+        if not target_id:
+            raise InvalidScenarioError(
+                "SHIFT_VOLUME requires a target_facility_id.",
+                context={"source_ids": source_ids},
+            )
+
+        modified, overrides = self._close(network, source_ids)
+        facilities = [
+            fac.model_copy(update={
+                "is_forced_closed": False,
+                "is_mandatory": True,
+                "is_closable": False,
+            }) if fac.id == target_id else fac
+            for fac in modified.facilities
+        ]
+        overrides.append(f"SHIFT_VOLUME {source_ids} -> {target_id}")
+        return modified.model_copy(update={"facilities": facilities}), overrides

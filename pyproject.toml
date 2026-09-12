@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netgravity"
+version = "7.0.0"
+description = "NetGravity — AI Decision Intelligence & MILP Optimization Platform for Supply Chain & Logistics Networks"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary" }
+authors = [
+    { name = "NetGravity Engineering Team", email = "netgravity@kearney.com" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = [
+    "pulp>=2.8.0,<3.0.0",
+    "pydantic>=2.0.0",
+    "highspy>=1.5.0",
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "requests>=2.31.0",
+    "azure-storage-blob>=12.23.0",
+    "azure-identity>=1.19.0",
+    "gunicorn>=23.0.0",
+    # Extraction / Parsing Agent — client-data ingestion
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.2,<2.0.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "reportlab>=4.0,<5",
+]
+# Live LLM extraction for ingestion. Not required — absent key means stub mode.
+llm = [
+    "openai>=1.40.0",
+    "anthropic>=0.40.0",
+    # Structured, read-only Reasoning Agent runtime. Imported only on the
+    # explicitly enabled live path; the deterministic template path — the one
+    # the test suite exercises — needs nothing installed.
+    "openai-agents>=0.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["netgravity/tests"]
+python_files = "test_*.py"
+markers = [
+    "slow: large-scale benchmarks (deselect with -m 'not slow')",
+]

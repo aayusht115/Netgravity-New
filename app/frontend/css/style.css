@@ -1,0 +1,5536 @@
+/* ═══════════════════════════════════════════════════════════
+   NetGravity — Design System
+   Light theme · Kearney purple · Consulting-grade SaaS
+   ═══════════════════════════════════════════════════════════ */
+
+/* Inter, served from this origin. This was an @import from
+   fonts.googleapis.com: a third-party request on every page load that
+   leaks the visitor's IP and user agent, fails offline, and is blocked
+   by `style-src 'self'` — so the page silently fell back to a system
+   font. See app/frontend/vendor/inter.css. */
+@import url('../vendor/inter.css');
+
+/* ─── Tokens ──────────────────────────────────────────────── */
+:root {
+  --purple-50:  #f5f0fa;  --purple-100: #e8ddf2;
+  --purple-200: #d4bfe8;  --purple-300: #b893d6;
+  --purple-400: #9a64c1;  --purple-500: #7c3aad;
+  --purple-600: #6B2FA0;  --purple-700: #5a2787;
+  --purple-800: #4a206e;  --purple-900: #3b1a58;
+
+  --primary:    var(--purple-600);
+  --primary-light: var(--purple-50);
+  --primary-hover: var(--purple-700);
+
+  --bg:         #ffffff;  --bg-page:     #f7f7fa;
+  --bg-card:    #ffffff;  --bg-elevated: #fafafc;
+  --bg-sidebar: #fafafc;  --bg-hover:    #f3f0f8;
+
+  --text-1:     #1a1a2e;  --text-2:     #5a5a72;
+  --text-3:     #8e8ea0;  --text-on-primary: #ffffff;
+
+  --border:     #e8e8ef;  --border-light: #f0f0f5;
+  --shadow-sm:  0 1px 3px rgba(0,0,0,.06);
+  --shadow-md:  0 4px 12px rgba(0,0,0,.07);
+  --shadow-lg:  0 8px 24px rgba(0,0,0,.09);
+
+  --green:  #16a34a;  --green-bg:  #f0fdf4;
+  --amber:  #d97706;  --amber-bg:  #fffbeb;
+  --red:    #dc2626;  --red-bg:    #fef2f2;
+  --blue:   #2563eb;  --blue-bg:   #eff6ff;
+
+  --r-xs: 4px; --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 18px;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px;
+  --sidebar-w: 220px;
+  --header-h: 56px;
+  /* The fixed "Ask Netgravity" button's footprint: 28px from the bottom plus
+     its 52px height, and a little air. Anything that must stay readable in
+     the bottom-right corner keeps this much clear of it. */
+  --ng-fab-clearance: 84px;
+  --transition: .2s cubic-bezier(.4,0,.2,1);
+}
+
+/* ─── Reset ───────────────────────────────────────────────── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { font-size: 14px; -webkit-font-smoothing: antialiased; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-page); color: var(--text-1); line-height: 1.6; }
+a { color: var(--primary); text-decoration: none; }
+button { cursor: pointer; font-family: inherit; }
+input, select, textarea { font-family: inherit; font-size: inherit; }
+
+/* ─── App Shell ───────────────────────────────────────────── */
+/* Exactly one window tall. `min-height: 100vh` with an auto height is not the
+   same thing: the shell then sized to its CONTENT, its content is .app-body,
+   and .app-body's own `flex: 1` sized back to the shell — so a tall page
+   simply pushed the whole shell taller and every `height: 100%` inside it
+   inherited the new, wrong number. */
+.app-shell { display: flex; flex-direction: column; height: 100vh; }
+
+/* ─── Header ──────────────────────────────────────────────── */
+.app-header {
+  display: flex; align-items: center; justify-content: space-between;
+  height: var(--header-h); padding: 0 var(--space-lg);
+  background: var(--bg); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.header-logo { display: flex; align-items: center; gap: var(--space-sm); }
+.logo-icon {
+  width: 36px; height: 36px; border-radius: var(--r-md);
+  background: linear-gradient(135deg, var(--purple-600), var(--purple-400));
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-weight: 800; font-size: 16px;
+}
+.logo-text { font-weight: 700; font-size: 17px; color: var(--text-1); }
+.logo-sub { display: block; font-size: 10.5px; color: var(--text-3); font-weight: 400; letter-spacing: .02em; }
+
+.header-right { display: flex; align-items: center; gap: var(--space-md); }
+.header-status {
+  font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 6px;
+}
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; }
+.status-dot.warning { background: var(--amber); }
+
+/* ─── Body Layout ─────────────────────────────────────────── */
+/* Exactly one window tall, and it does not scroll: the page area inside it
+   does (see .main-content).
+
+   It was `min-height: 100vh` with an auto height, so its real height was its
+   content's — and its content is .main-content, whose own height came back
+   from this element. The circularity resolved 56px too tall on Home (a page
+   built to fit exactly), which put a scrollbar on a screen with nothing below
+   the fold, and ran away completely on the Digital Twin: the map panel took
+   1140px in a 1050px window. Pinning the shell breaks the loop, and every
+   `height: 100%` / `flex: 1` inside it now resolves against a real number. */
+.app-body {
+  display: flex;
+  flex: 1;
+  /* `min-height: 0`, NOT `100vh`: this is a flex item in a shell that is
+     already exactly one window tall, so it takes the whole of it — and a
+     minimum of its own would only stop it shrinking back. */
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ─── Sidebar ─────────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--bg-sidebar); border-right: 1px solid var(--border);
+  flex-shrink: 0;
+  position: sticky; top: 0; height: 100vh;
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.sidebar-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-3); padding: 0 var(--space-md); margin-bottom: var(--space-xs);
+}
+.nav-item {
+  display: flex; align-items: center; gap: var(--space-sm);
+  padding: 10px var(--space-md); margin: 2px var(--space-sm);
+  border-radius: var(--r-md); cursor: pointer;
+  font-size: 13px; font-weight: 500; color: var(--text-2);
+  transition: all var(--transition);
+}
+.nav-item:hover { background: var(--bg-hover); color: var(--text-1); }
+.nav-item.active {
+  background: var(--primary-light); color: var(--primary); font-weight: 600;
+}
+.nav-icon { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+
+/* ─── Grouped navigation ──────────────────────────────────────
+   "Baseline" holds the twin and the KPIs: two views of the network as
+   uploaded and solved. The head is a disclosure and never an active
+   tab — `.nav-item.active` is reserved for the page actually on screen,
+   so the group can carry a selected child without claiming to be it. */
+.nav-group-head { justify-content: flex-start; }
+
+/* The collapse control, separated from the head when the head became a
+   destination. Sized to a 20px hit area rather than the 14px glyph — a
+   caret that is hard to hit sends the click to the head behind it, which
+   navigates, and the group appears not to collapse at all. */
+.nav-caret-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.nav-caret-btn:hover { background: rgba(17, 24, 39, 0.08); }
+
+.nav-caret {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  transition: transform var(--transition);
+}
+
+.nav-group[data-open="false"] .nav-caret { transform: rotate(-90deg); }
+
+.nav-group-items {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--transition);
+}
+
+.nav-group[data-open="false"] .nav-group-items { grid-template-rows: 0fr; }
+
+/* ONE child, and the collapse depends on it. `grid-template-rows: 0fr`
+   sizes the first row only, so with the two nav items as direct children
+   the group closed to the height of the second one — measured at 69px of
+   a 90px group, which reads as a broken animation rather than a closed
+   menu. The inner wrapper is that single row; it carries the overflow
+   and the `min-height: 0` the trick needs. */
+.nav-group-inner { overflow: hidden; min-height: 0; }
+
+/* Indented under the head, with a rail so the nesting is visible rather
+   than merely implied by whitespace. */
+.nav-item.nav-sub {
+  margin-left: calc(var(--space-sm) + 16px);
+  padding-left: 12px;
+  border-left: 1.5px solid var(--border-light, #eceef2);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+}
+
+.nav-item.nav-sub.active { border-left-color: var(--primary); }
+
+/* A collapsed sidebar shows icons only, and an indent rail against a
+   28px column reads as damage. The group flattens back to two peers —
+   which is what it was before, and is legible for the same reason. */
+.sidebar.collapsed .nav-caret { display: none; }
+.sidebar.collapsed .nav-caret-btn { display: none; }
+.sidebar.collapsed .nav-item.nav-sub {
+  margin-left: var(--space-sm);
+  padding-left: var(--space-md);
+  border-left: none;
+  border-radius: var(--r-md);
+}
+.sidebar.collapsed .nav-group[data-open="false"] .nav-group-items {
+  grid-template-rows: 1fr;
+}
+.nav-badge {
+  margin-left: auto; font-size: 10px; font-weight: 700;
+  background: var(--primary); color: white;
+  padding: 1px 7px; border-radius: 10px;
+}
+
+/* ─── Main Content ────────────────────────────────────────── */
+.main-content {
+  flex: 1; padding: var(--space-lg);
+  /* No width cap. It used to be `max-width: 1280px`, which Home alone opted
+     out of (.home-full-bleed) — so on any window wider than 1280 + sidebar
+     every OTHER page ended in a band of empty page down the right-hand side
+     while Home reached the edge. Same shell, two different content widths,
+     which is what "some screens have margins on the right side" is. */
+  max-width: none; width: 100%;
+  /* Column flex so a tab panel can use flex:1 to reach the bottom edge of
+     the page, the way #tab-home already does. .main-content is stretched to
+     the full viewport height by its flex-row parent, but a block child sized
+     to its own content has no way to know about that extra space. */
+  display: flex;
+  flex-direction: column;
+  /* Without this, a flex item's automatic minimum width is the max-content
+     size of its widest child (a table, a toggle-group row, etc.) — on
+     viewports narrower than that content's natural width, the item
+     refuses to shrink and instead overflows the whole page horizontally
+     rather than just clipping/scrolling its own content. */
+  min-width: 0;
+  /* The page area is the scroll container, not the window. A long page (the
+     Forecast, the KPI tables) scrolls here; a page built to fit the window
+     does not scroll at all, and the sticky top bar sticks to the top of the
+     content rather than to a window that never moves. */
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Home Overview spans the full width instead of the 1280px cap, and
+   switches to a column flex layout so #tab-home can use flex:1 to reach
+   the actual bottom edge of the page too (see updateTopBarLayout() in
+   app.js and #tab-home in home-overview.css) — needed because
+   .main-content itself is stretched to the full viewport height by its
+   own flex-row parent (.app-body), but a plain block child sized to its
+   own content has no way to know or fill that extra space on its own. */
+/* Retained as a hook — the full-bleed column layout it used to switch on is
+   now the base rule for every page, so this adds nothing on its own. */
+.main-content.home-full-bleed { max-width: none; }
+
+/* ─── Tab Panels ──────────────────────────────────────────── */
+.tab-panel { display: none; animation: fadeIn .3s ease; }
+.tab-panel.active { display: block; }
+
+/* Same purple gradient backdrop as Home (#tab-home, home-overview.css),
+   bled out to the edges of .main-content's own padding box the same way
+   — negative margin equal to that padding, then added back so the
+   content inside sits exactly where it did before. Home has its own
+   full-viewport-height version of this same rule; these other tabs just
+   fill down to roughly the bottom of the viewport instead. */
+#tab-facility-dashboard,
+#tab-twin,
+#tab-forecast,
+#tab-scenarios {
+  margin: calc(-1 * var(--space-lg));
+  padding: var(--space-lg);
+  background: linear-gradient(180deg, #f8f4fd 0%, #f1e7fa 55%, #e9d9f6 100%);
+}
+
+/* Fill the space left under the two header rows, exactly — the way #tab-home
+   does. This was `min-height: calc(100vh - var(--header-h) - 2*space-lg)`,
+   which counted the global top bar but not the page-title row below it, so
+   every one of these pages was about 50px taller than its window and the
+   whole shell scrolled by that much with nothing at the bottom to see.
+   `flex: 1 0 auto` fills what is actually left and still grows past it when
+   the page genuinely has more content than fits. */
+#tab-facility-dashboard.active,
+#tab-forecast.active,
+#tab-scenarios.active {
+  flex: 1 0 auto;
+  min-height: 0;
+}
+
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ─── Cards ───────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--space-lg);
+  box-shadow: var(--shadow-sm); transition: box-shadow var(--transition);
+}
+.card:hover { box-shadow: var(--shadow-md); }
+.card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-md); }
+.card-title { font-size: 15px; font-weight: 700; color: var(--text-1); }
+.card-subtitle { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
+/* ─── Insight Cards ───────────────────────────────────────── */
+.insight-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--space-lg);
+  box-shadow: var(--shadow-sm); cursor: pointer;
+  transition: all var(--transition); position: relative;
+  border-left: 4px solid transparent;
+}
+.insight-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.insight-card.critical { border-left-color: var(--red); }
+.insight-card.warning  { border-left-color: var(--amber); }
+.insight-card.success  { border-left-color: var(--green); }
+.insight-card.info     { border-left-color: var(--primary); }
+
+.insight-icon { font-size: 22px; margin-bottom: var(--space-sm); }
+.insight-title { font-size: 14px; font-weight: 700; color: var(--text-1); margin-bottom: 6px; }
+.insight-body { font-size: 13px; color: var(--text-2); line-height: 1.6; }
+.insight-metric { font-size: 20px; font-weight: 800; color: var(--text-1); margin: var(--space-sm) 0; }
+.insight-action {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: var(--space-md); font-size: 12px; font-weight: 600;
+  color: var(--primary); cursor: pointer;
+}
+.insight-action:hover { text-decoration: underline; }
+
+/* ─── Grids ───────────────────────────────────────────────── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); margin-bottom: var(--space-lg); }
+/* minmax(0, 1fr) rather than plain 1fr: a bare 1fr track's minimum size
+   defaults to its content's min-content width, so a wide table/card in
+   one column refuses to shrink and instead overflows the whole page
+   horizontally on narrower viewports (the same trap flex items have).
+   minmax(0, ...) lets the track — and an overflow-x:auto inside it —
+   shrink properly instead. */
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-lg); margin-bottom: var(--space-lg); }
+.grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-md); margin-bottom: var(--space-lg); }
+.grid-2-1 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-lg); margin-bottom: var(--space-lg); }
+.col-span-2 { grid-column: span 2; }
+.col-span-3 { grid-column: span 3; }
+
+/* ─── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 18px; border-radius: var(--r-md);
+  font-size: 13px; font-weight: 600; border: none;
+  transition: all var(--transition);
+}
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-hover); box-shadow: var(--shadow-md); }
+.btn-secondary { background: var(--bg-page); color: var(--text-2); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--bg-hover); color: var(--text-1); }
+.btn-success { background: var(--green); color: white; }
+.btn-success:hover { opacity: .9; }
+.btn-danger { background: var(--red); color: white; }
+.btn-danger:hover { opacity: .9; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-ghost { background: transparent; color: var(--primary); padding: 6px 12px; }
+.btn-ghost:hover { background: var(--primary-light); }
+.btn-group { display: flex; gap: var(--space-sm); }
+
+/* ─── Tags / Badges ───────────────────────────────────────── */
+.tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+}
+.tag-primary   { background: var(--primary-light); color: var(--primary); }
+.tag-success   { background: var(--green-bg);  color: var(--green); }
+.tag-warning   { background: var(--amber-bg);  color: var(--amber); }
+.tag-danger    { background: var(--red-bg);    color: var(--red); }
+.tag-info      { background: var(--blue-bg);   color: var(--blue); }
+.tag-muted     { background: var(--bg-page);   color: var(--text-3); }
+
+/* ─── Toggle Switch (network state) ──────────────────────── */
+.toggle-group {
+  display: inline-flex; background: var(--bg-page); border-radius: var(--r-md);
+  padding: 3px; gap: 2px; border: 1px solid var(--border);
+}
+.toggle-btn {
+  padding: 6px 14px; border-radius: var(--r-sm); border: none;
+  background: transparent; font-size: 12px; font-weight: 600;
+  color: var(--text-3); cursor: pointer; transition: all var(--transition);
+}
+.toggle-btn.active { background: var(--primary); color: white; box-shadow: var(--shadow-sm); }
+.toggle-btn:hover:not(.active) { color: var(--text-1); background: var(--bg-hover); }
+
+/* ─── Tables ──────────────────────────────────────────────── */
+/* Table auto-layout treats a table's width:100% as a minimum, not a cap —
+   if its columns' content needs more room than that (badges, tabular
+   numbers, uppercase headers), the table quietly renders wider than its
+   card and spills text past the card's rounded edge onto whatever is
+   behind it. Wrapping it in a scrollable container contains that overflow
+   as a horizontal scrollbar instead of a visual leak. */
+.card-table-scroll, .table-wrap { overflow-x: auto; }
+
+/* Compact variant for the 3-across Plants/DCs/Markets tables on the
+   Digital Twin page — four columns in a ~1/3-width card need every pixel
+   they can get, so this trims padding/font-size just enough that the
+   Status column stays visible without needing the scrollbar above at
+   typical widths (it's still there as a fallback on very narrow ones). */
+.ng-table-compact { font-size: 12.5px; }
+.ng-table-compact th,
+.ng-table-compact td { padding: 8px 8px; }
+.ng-table-compact .tag { padding: 2px 6px; font-size: 10.5px; }
+.ng-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ng-table th {
+  text-align: left; padding: 10px 12px; font-weight: 600;
+  color: var(--text-3); font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  border-bottom: 2px solid var(--border); background: var(--bg-elevated);
+}
+.ng-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); }
+.ng-table tr:hover td { background: var(--bg-hover); }
+.ng-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ─── Charts ──────────────────────────────────────────────── */
+.chart-wrap { position: relative; height: 280px; }
+.chart-wrap.tall { height: 360px; }
+.chart-wrap.short { height: 200px; }
+
+/* ─── Map ─────────────────────────────────────────────────── */
+.map-container { height: 480px; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--border); }
+.map-container.tall { height: 560px; }
+
+/* ─── Facility Panel (slide-in) ───────────────────────────── */
+.facility-panel {
+  position: fixed; right: -400px; top: 0; bottom: 0;
+  width: 380px; background: var(--bg); border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg); z-index: 200;
+  padding: var(--space-lg); overflow-y: auto;
+  transition: right .35s cubic-bezier(.4,0,.2,1);
+}
+.facility-panel.open { right: 0; }
+.facility-panel-close {
+  position: absolute; right: var(--space-md); top: var(--space-md);
+  width: 28px; height: 28px; border-radius: 50%; border: none;
+  background: var(--bg-page); color: var(--text-2); font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.fp-title { font-size: 18px; font-weight: 700; margin-bottom: var(--space-xs); }
+.fp-subtitle { font-size: 12px; color: var(--text-3); margin-bottom: var(--space-lg); }
+.fp-stat { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-light); }
+.fp-stat-label { font-size: 13px; color: var(--text-2); }
+.fp-stat-value { font-size: 13px; font-weight: 700; }
+
+/* ─── Agent Trace ─────────────────────────────────────────── */
+.agent-trace { position: relative; padding-left: 28px; }
+.trace-step {
+  position: relative; padding: 10px 0 10px var(--space-md);
+  font-size: 13px; color: var(--text-2);
+}
+.trace-step::before {
+  content: ''; position: absolute; left: -20px; top: 16px;
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid var(--primary); background: white;
+}
+.trace-step.done::before { background: var(--primary); }
+.trace-step.active::before { background: var(--amber); border-color: var(--amber); animation: pulse 1.5s infinite; }
+.trace-step:not(:last-child)::after {
+  content: ''; position: absolute; left: -16px; top: 28px;
+  width: 2px; height: calc(100% - 12px); background: var(--border);
+}
+.trace-step.done:not(:last-child)::after { background: var(--primary); }
+.trace-action { font-weight: 600; color: var(--text-1); }
+.trace-detail { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(217,119,6,.4); } 50% { box-shadow: 0 0 0 6px rgba(217,119,6,0); } }
+
+/* ─── Tool Call Log ───────────────────────────────────────── */
+.tool-call {
+  display: flex; gap: var(--space-sm); padding: 8px var(--space-md);
+  background: var(--bg-elevated); border-radius: var(--r-sm);
+  margin-bottom: 6px; font-size: 12px;
+}
+.tool-name { font-family: 'Courier New', monospace; font-weight: 600; color: var(--primary); white-space: nowrap; }
+.tool-result { color: var(--text-2); flex: 1; }
+
+/* ─── Recommendation Panel ────────────────────────────────── */
+.rec-panel { border-left: 4px solid var(--primary); }
+.rec-title { font-size: 22px; font-weight: 800; color: var(--text-1); margin-bottom: var(--space-md); }
+.rec-subtitle { font-size: 15px; font-weight: 600; color: var(--text-1); margin: var(--space-lg) 0 var(--space-sm); }
+
+.impact-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-md); margin: var(--space-lg) 0; }
+.impact-item { text-align: center; padding: var(--space-md); background: var(--bg-elevated); border-radius: var(--r-md); }
+.impact-label { font-size: 11px; color: var(--text-3); text-transform: uppercase; font-weight: 600; letter-spacing: .03em; }
+.impact-value { font-size: 24px; font-weight: 800; margin-top: 4px; }
+.impact-value.positive { color: var(--green); }
+.impact-value.neutral { color: var(--text-1); }
+.impact-value.negative { color: var(--red); }
+
+/* ─── Rejected Scenario ──────────────────────────────────── */
+.rejected-item {
+  background: var(--red-bg); border: 1px solid #fecaca;
+  border-radius: var(--r-md); padding: var(--space-md); margin-bottom: var(--space-sm);
+}
+.rejected-name { font-weight: 700; font-size: 13px; color: var(--red); margin-bottom: 4px; }
+.rejected-reason { font-size: 12px; color: var(--text-2); }
+
+/* ─── Next Steps ──────────────────────────────────────────── */
+.next-step {
+  display: flex; gap: var(--space-md); padding: 12px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.step-number {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--primary-light); color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; flex-shrink: 0;
+}
+.step-content { flex: 1; }
+.step-action { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.step-owner { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+/* ─── Email Preview ───────────────────────────────────────── */
+.email-preview {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: var(--space-lg);
+  font-family: 'Courier New', monospace; font-size: 12px;
+  line-height: 1.7; color: var(--text-2);
+  white-space: pre-wrap; max-height: 400px; overflow-y: auto;
+  display: none;
+}
+.email-preview.visible { display: block; }
+
+/* ─── Scenario Comparison ─────────────────────────────────── */
+.scenario-table { width: 100%; }
+.scenario-table th { font-size: 11px; padding: 10px 8px; }
+.scenario-table td { padding: 10px 8px; font-size: 13px; text-align: center; }
+.scenario-table td.name-cell { text-align: left; font-weight: 600; }
+.scenario-winner { background: var(--green-bg); font-weight: 700; }
+.scenario-fail { background: var(--red-bg); color: var(--red); }
+
+/* ─── Data Quality ────────────────────────────────────────── */
+.dq-ring {
+  width: 120px; height: 120px; border-radius: 50%;
+  background: conic-gradient(var(--green) 0% 98.4%, var(--border) 98.4% 100%);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto var(--space-md);
+}
+.dq-ring-inner {
+  width: 90px; height: 90px; border-radius: 50%; background: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 800; color: var(--green);
+}
+
+/* ─── Architecture Pipeline ───────────────────────────────── */
+.arch-pipeline { display: flex; flex-direction: column; gap: 0; align-items: center; }
+.arch-step {
+  display: flex; align-items: center; gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r-md); width: 420px;
+  transition: all var(--transition);
+}
+.arch-step:hover { box-shadow: var(--shadow-md); border-color: var(--primary); }
+.arch-step-icon { font-size: 24px; width: 40px; text-align: center; }
+.arch-step-label { font-weight: 700; font-size: 14px; }
+.arch-step-type { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.arch-step-type.ai { background: var(--purple-100); color: var(--purple-700); }
+.arch-step-type.ml { background: var(--blue-bg); color: var(--blue); }
+.arch-step-type.deterministic { background: var(--green-bg); color: var(--green); }
+.arch-step-type.human { background: var(--amber-bg); color: var(--amber); }
+.arch-arrow {
+  width: 2px; height: 24px; background: var(--border);
+  position: relative;
+}
+.arch-arrow::after {
+  content: '▼'; position: absolute; bottom: -8px; left: -5px;
+  font-size: 10px; color: var(--border);
+}
+
+/* ─── Signal Card ─────────────────────────────────────────── */
+.signal-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+.signal-badge {
+  font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
+  background: var(--amber-bg); color: var(--amber);
+}
+
+/* ─── Governance Tiers ────────────────────────────────────── */
+.tier-card {
+  border-radius: var(--r-md); padding: var(--space-md);
+  border: 1px solid var(--border); margin-bottom: var(--space-sm);
+}
+.tier-card.tier-1 { border-left: 4px solid var(--green); }
+.tier-card.tier-2 { border-left: 4px solid var(--amber); }
+.tier-card.tier-3 { border-left: 4px solid var(--red); }
+
+/* ─── Section Header ──────────────────────────────────────── */
+.section-header {
+  font-size: 22px; font-weight: 800; color: var(--text-1);
+  margin-bottom: var(--space-lg);
+}
+.section-intro {
+  font-size: 15px; color: var(--text-2); margin-bottom: var(--space-lg);
+  max-width: 640px;
+}
+
+/* ─── Agent Voice (first-person) ──────────────────────────── */
+.agent-voice {
+  font-size: 16px; font-weight: 600; color: var(--text-1);
+  font-style: italic; margin-bottom: var(--space-md);
+}
+.agent-quote {
+  padding-left: var(--space-md); border-left: 3px solid var(--primary);
+  font-size: 14px; color: var(--text-1); font-weight: 500;
+  margin: var(--space-md) 0;
+}
+
+/* ─── Contract Comparison ─────────────────────────────────── */
+.contract-card { padding: var(--space-lg); border-radius: var(--r-lg); border: 1px solid var(--border); }
+.contract-card.alert { border-color: var(--red); background: var(--red-bg); }
+.contract-headline { font-size: 28px; font-weight: 800; }
+
+/* ─── Scenario Builder Form ───────────────────────────────── */
+.form-group { margin-bottom: var(--space-md); }
+.form-label { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 4px; display: block; }
+.form-input, .form-select {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: var(--r-sm); background: var(--bg); font-size: 13px;
+  transition: border-color var(--transition);
+}
+.form-input:focus, .form-select:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(107,47,160,.1); }
+.form-row { display: flex; gap: var(--space-md); }
+.form-row .form-group { flex: 1; }
+
+/* ─── Modal / Overlay ─────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 999999; /* Higher than Leaflet map panes, 3D canvas, and all tooltips */
+  display: none;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.modal-overlay.visible { display: flex; }
+.modal-box {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: var(--space-xl);
+  max-width: 620px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+  z-index: 1000000;
+}
+
+/* ─── Loading ─────────────────────────────────────────────── */
+.loading-bar {
+  height: 3px; background: var(--bg-page); overflow: hidden;
+  position: fixed; top: var(--header-h); left: 0; right: 0; z-index: 99;
+  display: none;
+}
+.loading-bar.active { display: block; }
+.loading-bar::after {
+  content: ''; display: block; height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--purple-400));
+  width: 30%; animation: loadSlide 1.2s ease infinite;
+}
+@keyframes loadSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
+
+/* ─── Utility ─────────────────────────────────────────────── */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-xs { gap: var(--space-xs); }
+.gap-sm { gap: var(--space-sm); }
+.gap-md { gap: var(--space-md); }
+.gap-lg { gap: var(--space-lg); }
+.mt-sm { margin-top: var(--space-sm); }
+.mt-md { margin-top: var(--space-md); }
+.mt-lg { margin-top: var(--space-lg); }
+.mb-md { margin-bottom: var(--space-md); }
+.mb-lg { margin-bottom: var(--space-lg); }
+.text-sm { font-size: 12px; }
+.text-xs { font-size: 11px; }
+.text-muted { color: var(--text-3); }
+.text-center { text-align: center; }
+.font-bold { font-weight: 700; }
+.hidden { display: none !important; }
+
+/* ─── Leaflet Overrides ───────────────────────────────────── */
+.leaflet-popup-content-wrapper { border-radius: var(--r-md) !important; box-shadow: var(--shadow-md) !important; }
+.leaflet-popup-content { font-family: 'Inter', sans-serif !important; font-size: 13px !important; }
+
+/* ═══════════════════════════════════════════════════════════
+   HOME — Decision Cockpit Styles
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Sidebar Brand ───────────────────────────────────────── */
+.sidebar-brand {
+  display: flex; align-items: center; gap: var(--space-sm);
+  padding: var(--space-lg) var(--space-md) var(--space-xl);
+}
+.sidebar-nav { padding: 0 var(--space-sm); flex: 1; }
+.sidebar-meta {
+  padding: var(--space-md); margin: 0 var(--space-sm);
+  background: var(--bg-page); border-radius: var(--r-md);
+}
+.meta-block { padding: 6px 0; }
+.meta-block + .meta-block { border-top: 1px solid var(--border-light); }
+.meta-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.meta-value { font-size: 12px; font-weight: 600; color: var(--text-1); margin-top: 1px; }
+.sidebar-status {
+  padding: var(--space-md); margin: var(--space-md) var(--space-sm) var(--space-sm);
+  background: var(--green-bg); border-radius: var(--r-md);
+}
+.sidebar-status-title { font-size: 11px; font-weight: 700; color: var(--green); margin-bottom: 4px; }
+.sidebar-status-line { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.nav-svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+
+/* ═══════════════════════════════════════════════════════════
+   GLOBAL TOPBAR & SUB-TOPBAR (Approved Header Architecture)
+   ═══════════════════════════════════════════════════════════ */
+
+.app-global-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-light);
+  position: sticky;
+  top: 0;
+  z-index: 90;
+}
+
+/* The band the bar could not cover.
+   `.main-content` is the scroll container and carries `padding: var(--space-lg)`.
+   A sticky child pins to the top of the SCROLLPORT, which is the padding box —
+   so this bar docks 24px below the container's visible top edge, and the
+   content scrolling underneath passes through those 24px in full view before
+   it reaches the bar. Measured on the KPI dashboard at scrollTop 150 and 600:
+   `#dash-facility-name`, `.facility-toolbar` and two chart canvases were all
+   painting in that band, above a bar whose whole job is to be in front of
+   them.
+
+   The band is real page, not a gap the bar could simply grow into: the tab
+   panels deliberately bleed out to the container's edges through the same
+   padding (see `#tab-facility-dashboard` and friends below), so removing the
+   container's padding would move every panel instead of fixing this.
+
+   So the bar covers it, with an opaque strip in its own background that is
+   part of the bar and therefore sticks with it. `left/right: 0` matches the
+   bar's own width, which is exactly the width content can occupy: each panel
+   pads its content back in by the same 24px it bled out by, so nothing can
+   ever appear beside the bar. */
+.app-global-topbar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: var(--space-lg);
+  background: var(--bg);
+  pointer-events: none;
+}
+
+.topbar-left-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.project-select-btn { transition: border-color 0.15s ease, background 0.15s ease; }
+.project-select-btn:hover { border-color: #9218EA !important; background: #f5f1fb !important; }
+
+/* The application's Facility/Period pair, in the top bar's left area beside
+   the project selector — on every page, not only Home (see
+   updateTopBarLayout). Same look as .topbar-controls had in the sub-topbar
+   row, without the auto left-margin that pushed it to the right there. */
+#home-top-controls { margin-left: 0; min-width: 0; }
+
+/* The top bar now carries the project, the facility and the period on its
+   left and four controls on its right. At 1100px that is wider than the
+   window, and the page scrolled sideways. It gives way in the order things
+   can be spared: first the gaps, then the words "Facility" and "Period"
+   (each sits directly above a select that names itself), then the selects
+   themselves truncate. */
+.topbar-left-area { min-width: 0; flex: 1 1 auto; }
+#home-top-controls .topbar-facility-select,
+#home-top-controls .topbar-period-select {
+  min-width: 0;
+  max-width: 220px;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1400px) {
+  .topbar-left-area { gap: 9px; }
+  #home-top-controls { gap: 10px; }
+  #home-top-controls .topbar-facility-select { max-width: 168px; }
+  #home-top-controls .topbar-period-select { max-width: 120px; }
+}
+
+@media (max-width: 1180px) {
+  #home-top-controls .topbar-control-group .control-label { display: none; }
+  #home-top-controls .topbar-facility-select { max-width: 140px; }
+  .app-global-topbar { padding-left: 18px; padding-right: 18px; }
+  .topbar-right-area { gap: 10px; }
+}
+
+@media (max-width: 1000px) {
+  /* Below this the project button's own label is the first thing to go —
+     the folder icon and the project name after it still identify it. */
+  .project-select-btn span strong { max-width: 120px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; display: inline-block;
+    vertical-align: bottom; }
+}
+
+.topbar-right-area {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Upload Data Button (Home Overview Only) */
+.btn-topbar-upload {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 16px;
+  border-radius: 20px;
+  background: #9218EA;
+  color: #ffffff;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(146, 24, 234, 0.25);
+  transition: all 0.15s ease;
+}
+
+.btn-topbar-upload:hover {
+  background: #7c14c7;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(146, 24, 234, 0.35);
+}
+
+/* Global Clickable Icon Buttons (Available Across All Pages) */
+.topbar-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #4b5563;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.topbar-icon-btn:hover {
+  border-color: #9218EA;
+  color: #9218EA;
+  background: rgba(146, 24, 234, 0.04);
+}
+
+.notif-badge-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 1.5px solid #ffffff;
+}
+
+.topbar-profile-wrap {
+  position: relative;
+}
+
+.topbar-profile-btn {
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.topbar-profile-btn:hover {
+  transform: scale(1.05);
+}
+
+.profile-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 172px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(17, 24, 39, 0.14);
+  padding: 6px;
+  display: none;
+  z-index: 200;
+}
+
+.profile-dropdown-menu.open {
+  display: block;
+}
+
+.profile-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.profile-dropdown-item:hover {
+  background: #f5f1fb;
+  color: #9218EA;
+}
+
+.profile-dropdown-item.danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.profile-dropdown-sep {
+  height: 1px;
+  background: #f1eef7;
+  margin: 4px 3px;
+}
+
+/* Sub-Topbar (Page Title / Greeting + Facility & Period Selectors in Parallel) */
+.app-sub-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 28px;
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--border-light);
+  min-height: 50px;
+  gap: 16px;
+  /* Paints ABOVE the tab panel below it.
+     Each panel is pulled up by `margin: calc(-1 * var(--space-lg))` so its
+     gradient bleeds to the edges of the shell — which also pulls it 20px up
+     over this row, and since the panel comes later in the document it won its
+     overlap: the bottom of "Digital Twin" was covered by the panel's
+     background. A stacking context here puts the row back on top. Below the
+     global top bar's z-index of 90, so that still covers this when sticky. */
+  position: relative;
+  z-index: 1;
+}
+
+.sub-topbar-title-wrap,
+.sub-topbar-greeting {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* Home's own `.ov-title` is the reference: 22px / 800 / -0.025em. Every
+   other page's title is drawn at that size so a reader moving between tabs
+   sees one heading scale rather than a 21px one here and a 22px one there. */
+.sub-topbar-main-title,
+.greeting-text {
+  font-size: 22px;
+  color: #111827;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.sub-topbar-main-title strong,
+.greeting-text strong {
+  color: #9218EA;
+  font-weight: 700;
+}
+
+/* 13px, matching Home's `.ov-subtitle` — the strapline that now sits on the
+   same line as "Overview". */
+.sub-topbar-sub-title,
+.greeting-sub {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+}
+
+.topbar-control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-control-group .control-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.topbar-facility-select,
+.topbar-period-select {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-1);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--t-fast);
+  cursor: pointer;
+  outline: none;
+}
+
+/* A disabled selector must not look clickable.
+   Both controls set `cursor: pointer` unconditionally and had no :disabled
+   rule, so a period selector disabled because the data states one period
+   still showed a pointer and a hover highlight — which is precisely why a
+   working single-period control was reported as "not clickable". The title
+   attribute already explains why; this makes the state visible before the
+   user tries. */
+.topbar-facility-select:disabled,
+.topbar-period-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  background: var(--bg-elevated);
+  box-shadow: none;
+}
+
+.topbar-facility-select:disabled:hover,
+.topbar-period-select:disabled:hover {
+  border-color: var(--border);
+}
+
+.topbar-facility-select:hover,
+.topbar-period-select:hover {
+  border-color: #9218EA;
+}
+
+/* ─── Sidebar Sub-Item ────────────────────────────────────── */
+.nav-sub-item {
+  padding: 6px 14px 6px 34px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+  border-radius: var(--r-md);
+  margin: 1px var(--space-sm);
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nav-sub-item:hover { background: var(--bg-hover); color: var(--primary-hover); }
+.nav-sub-item.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 700;
+}
+.sub-nav-indicator { opacity: 0.6; font-size: 11px; }
+
+/* ─── Home 2-Column Command Centre Layout ─────────────────── */
+.home-2col-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.15fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.home-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.home-top-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.home-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow var(--transition), border-color var(--transition);
+}
+.home-card:hover {
+  box-shadow: var(--shadow-md);
+}
+.home-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.home-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin: 0;
+}
+.home-right-title {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-1);
+  margin: 0;
+}
+.home-view-by-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.view-by-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.control-select-sm {
+  padding: 4px 26px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%238e8ea0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  transition: border-color var(--transition);
+}
+.control-select-sm:focus { outline: none; border-color: var(--primary); }
+
+/* ─── KPI 2x2 Grid ────────────────────────────────────────── */
+.home-kpi-2x2-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  flex: 1;
+}
+.home-kpi-item {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  position: relative;
+  transition: all var(--transition);
+}
+.home-kpi-item:hover {
+  background: var(--bg);
+  border-color: var(--purple-200);
+}
+.home-kpi-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.home-kpi-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  line-height: 1.3;
+}
+.home-kpi-icon-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.home-kpi-val {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-1);
+  line-height: 1.1;
+}
+.home-kpi-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 3px;
+}
+.home-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+}
+.link-btn {
+  background: none;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  transition: all var(--transition);
+}
+.link-btn:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+  transform: translateX(2px);
+}
+
+/* ─── Forecast Section ────────────────────────────────────── */
+.home-forecast-insight-banner {
+  background: var(--purple-50);
+  border: 1px solid var(--purple-100);
+  border-radius: var(--r-md);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-hover);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+.home-forecast-chart-container {
+  height: 175px;
+  position: relative;
+  width: 100%;
+}
+
+/* ─── Digital Twin Map Card ───────────────────────────────── */
+.home-map-wrap {
+  height: 420px;
+  width: 100%;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  position: relative;
+  background: #eef2f6;
+}
+
+/* ─── Right 1/3 Rail (Insights, Actions, Chatbot) ─────────── */
+.home-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.home-numbered-insights {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-insight-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.home-insight-row:hover {
+  background: var(--bg);
+  border-color: var(--purple-200);
+  box-shadow: 0 2px 8px rgba(107,47,160,0.06);
+  transform: translateY(-1px);
+}
+.insight-row-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.insight-num-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--primary);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.insight-info-icon {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-left: 2px;
+}
+.insight-overlay-hint {
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* ─── Action Items ────────────────────────────────────────── */
+.home-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.home-action-row:hover {
+  background: var(--bg);
+  border-color: var(--purple-200);
+  box-shadow: 0 2px 8px rgba(107,47,160,0.06);
+  transform: translateY(-1px);
+}
+.home-action-checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--purple-300);
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--primary);
+}
+.home-action-text {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.home-action-tag {
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+/* ─── Compact Chatbot ─────────────────────────────────────── */
+.home-chat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-chat-messages {
+  max-height: 140px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  background: var(--bg-elevated);
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-light);
+}
+.home-chat-msg { margin-bottom: 6px; }
+.home-chat-msg.user { font-weight: 700; color: var(--primary); }
+.home-chat-msg.bot { color: var(--text-1); }
+.home-chat-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.home-chat-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-size: 12.5px;
+  background: var(--bg);
+  color: var(--text-1);
+  outline: none;
+  transition: border-color var(--transition);
+}
+.home-chat-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(107,47,160,.1);
+}
+.home-chat-send {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: var(--r-md);
+  background: var(--primary);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.home-chat-send:hover {
+  background: var(--primary-hover);
+}
+
+/* Responsive adjustment for 2-column home layout */
+@media (max-width: 1100px) {
+  .home-2col-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 768px) {
+  .home-top-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Facility Dashboard / Analytics ───────────────────────── */
+.dash-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: var(--space-md); margin-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--border-light);
+}
+.dash-meta-badge {
+  display: flex; align-items: center; gap: var(--space-sm);
+  font-size: 14px;
+}
+.dash-actions { display: flex; align-items: center; gap: var(--space-sm); }
+.dash-metric-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 16px 20px; box-shadow: var(--shadow-sm);
+}
+.dash-metric-title { font-size: 11.5px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
+.dash-metric-val { font-size: 24px; font-weight: 800; color: var(--text-1); margin: 4px 0 2px; }
+.dash-metric-sub { font-size: 11.5px; color: var(--text-2); display: flex; align-items: center; justify-content: space-between; }
+
+
+/* ─── Home Insights ───────────────────────────────────────── */
+.home-insights-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: var(--space-lg);
+}
+.insights-title { font-size: 22px; font-weight: 800; color: var(--text-1); margin-bottom: 4px; }
+.insights-subtitle { font-size: 14px; color: var(--text-3); }
+
+.insight-list { display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-xl); }
+
+.home-insight-card {
+  display: grid; grid-template-columns: 48px 1fr 1fr auto;
+  gap: var(--space-md); align-items: center;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 18px 20px; cursor: pointer;
+  transition: all var(--transition); border-left: 4px solid transparent;
+}
+.home-insight-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.home-insight-card.severity-high { border-left-color: var(--red); }
+.home-insight-card.severity-medium { border-left-color: var(--amber); }
+.home-insight-card.severity-low { border-left-color: var(--green); }
+.home-insight-card.severity-ai { border-left-color: var(--primary); }
+
+.insight-icon-wrap {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+
+
+.insight-main-title { font-size: 14px; font-weight: 700; color: var(--text-1); margin-bottom: 3px; }
+.insight-main-sub { font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+.insight-impact-tag {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  padding: 2px 10px; border-radius: 12px; color: white;
+}
+
+
+.insight-why-label { font-size: 11px; font-weight: 700; color: var(--text-3); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .03em; }
+.insight-why-text { font-size: 12px; color: var(--text-2); line-height: 1.5; }
+
+.insight-action-link {
+  font-size: 13px; font-weight: 700; color: var(--primary);
+  white-space: nowrap; display: flex; align-items: center; gap: 4px;
+  text-decoration: none;
+}
+.insight-action-link:hover { text-decoration: underline; }
+
+/* ─── AI Banner ───────────────────────────────────────────── */
+.ai-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 16px 24px; box-shadow: var(--shadow-sm);
+}
+.ai-banner-left { display: flex; align-items: center; gap: var(--space-md); }
+.ai-banner-icon { font-size: 24px; }
+.ai-banner-text { font-size: 13px; color: var(--text-1); font-weight: 500; }
+.ai-banner-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
+/* ─── Generic & Specific Drawer Overlays ────────────────────── */
+.drawer-overlay,
+.insight-drawer-overlay,
+.scenario-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  z-index: 99999; /* Higher than all Leaflet panes, tooltips and controls */
+  display: none;
+  justify-content: flex-end;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.drawer-overlay.visible,
+.insight-drawer-overlay.visible,
+.scenario-drawer-overlay.visible { display: flex; }
+
+.drawer,
+.insight-drawer,
+.scenario-drawer {
+  width: 540px;
+  max-width: 90vw;
+  background: var(--bg);
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -10px 0 40px rgba(0,0,0,.22);
+  position: relative;
+  z-index: 100000;
+  animation: slideIn .3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-header {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+}
+
+.drawer-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-1);
+}
+
+.drawer-close {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--r-sm);
+  transition: all var(--t-fast);
+}
+
+.drawer-close:hover {
+  color: var(--text-1);
+  background: var(--bg-subtle);
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px;
+}
+
+.drawer-footer {
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+}
+@keyframes slideIn { from { transform: translateX(100%); } to { transform: none; } }
+
+.drawer-section-title {
+  font-size: 11px; font-weight: 700; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .06em;
+  margin: var(--space-lg) 0 var(--space-sm); padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border-light);
+}
+.drawer-text { font-size: 13px; color: var(--text-2); line-height: 1.7; }
+.evidence-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--border-light);
+  font-size: 13px;
+}
+.evidence-label { color: var(--text-2); }
+.evidence-value { font-weight: 700; color: var(--text-1); }
+.provenance-badge {
+  display: inline-block; font-size: 9px; font-weight: 700;
+  padding: 2px 6px; border-radius: 4px; margin-left: 6px;
+  text-transform: uppercase; letter-spacing: .03em;
+}
+.provenance-badge.model-fact { background: var(--blue-bg); color: var(--blue); }
+.provenance-badge.forecast { background: var(--amber-bg); color: var(--amber); }
+.provenance-badge.external-signal { background: var(--green-bg); color: var(--green); }
+.provenance-badge.ai-assessment { background: var(--purple-50); color: var(--primary); }
+
+/* ═══════════════════════════════════════════════════════════
+   SCENARIO PLANNING WORKSPACE (Approved Reference Design)
+   ═══════════════════════════════════════════════════════════ */
+
+/* Scenario Planning Top Header */
+.scn-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.scn-header-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-1);
+}
+
+.scn-header-subtitle {
+  font-size: 12.5px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.scn-scenario-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.12));
+  padding: 6px;
+  z-index: 40;
+}
+
+.scn-scenario-dropdown-menu.open { display: block; }
+
+.scn-scenario-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm, 6px);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.scn-scenario-dropdown-item:hover { background: var(--purple-50); }
+.scn-scenario-dropdown-item.active { background: var(--purple-50); color: var(--primary); }
+
+.scn-scenario-dropdown-del {
+  border: none;
+  background: none;
+  color: var(--text-4);
+  font-size: 12px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scn-scenario-dropdown-del:hover { background: #fee2e2; color: #b91c1c; }
+
+.scn-create-btn {
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: var(--r-full);
+  border: none;
+  background: linear-gradient(135deg, #7c3aed 0%, #6B2FA0 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(107, 47, 160, 0.3);
+  transition: all var(--t-fast);
+}
+
+.scn-create-btn:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 6px 18px rgba(107, 47, 160, 0.4);
+}
+
+/* ─── Risk label colours (shared by comparison tables) ─────────── */
+.scn-risk-red    { color: #dc2626; font-weight: 700; }
+.scn-risk-amber  { color: #b45309; font-weight: 700; }
+.scn-risk-green  { color: #16a34a; font-weight: 700; }
+
+/* ─── Redesigned comparison table (single + multi) ─────────────── */
+.scn-data-table2 {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.scn-data-table2 th {
+  padding: 10px 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border-light);
+  text-align: left;
+}
+
+.scn-data-table2 td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: middle;
+}
+
+.scn-data-table2 tr:last-child td { border-bottom: none; }
+
+.scn-row2-metric {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scn-row2-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.scn-row2-label { font-weight: 700; color: var(--text-1); font-size: 13.5px; }
+.scn-row2-sub { font-size: 11px; color: var(--text-4); margin-top: 1px; }
+
+.scn-sparkle-inline { font-size: 11px; }
+
+.scn-delta-pill {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+}
+
+.scn-delta-pill.good { background: #dcfce7; color: #15803d; }
+.scn-delta-pill.bad { background: #fee2e2; color: #b91c1c; }
+.scn-delta-pill.neutral { background: var(--bg-subtle); color: var(--text-3); }
+
+.scn-th-rec2 {
+  background: rgba(107, 47, 160, 0.05) !important;
+  border-top: 2px solid var(--primary);
+}
+
+.scn-td-rec2 {
+  background: rgba(107, 47, 160, 0.03);
+}
+
+.scn-multi-table2 th,
+.scn-multi-table2 td { text-align: center; }
+.scn-multi-table2 th:first-child,
+.scn-multi-table2 td:first-child { text-align: left; }
+
+/* "Customize metrics" popover — choose which rows show in the table */
+.scn-customize-wrap { position: relative; }
+
+.scn-customize-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--bg-card);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.scn-customize-btn:hover { background: var(--purple-50); color: var(--primary); border-color: var(--purple-200); }
+.scn-customize-btn.disabled { opacity: 0.5; cursor: not-allowed; }
+.scn-customize-btn.disabled:hover { background: var(--bg-card); color: var(--text-2); border-color: var(--border); }
+
+/* ─── Unified Scenario Planning page header + selector bar ─────── */
+.scn-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.scn-selector-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.scn-selector-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+.scn-selected-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.scn-selected-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 14px;
+  border-radius: var(--r-full);
+  background: linear-gradient(135deg, #f6ecff 0%, #eee0ff 100%);
+  border: 1px solid var(--purple-200);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.scn-add-scenario-wrap { position: relative; }
+
+.scn-add-scenario-empty {
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  max-width: 220px;
+}
+
+.scn-customize-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 230px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.12));
+  padding: 8px;
+  z-index: 40;
+}
+
+.scn-customize-menu.open { display: block; }
+
+.scn-customize-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--r-sm, 6px);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.scn-customize-item:hover { background: var(--bg-subtle); }
+.scn-customize-item input[type="checkbox"] { accent-color: var(--primary); cursor: pointer; }
+
+/* ─── "NetGravity's take" card (single + multi views) ──────────── */
+.scn-take-card {
+  background: linear-gradient(165deg, #faf5ff 0%, #ffffff 45%);
+  border: 1px solid var(--purple-200);
+  border-radius: var(--r-lg);
+  padding: 20px 22px;
+  box-shadow: 0 4px 18px rgba(107, 47, 160, 0.08);
+  position: sticky;
+  /* BELOW THE BAR, not behind it.
+     `.app-global-topbar` is sticky at `top: 0` in this same scroll container,
+     so a card pinned at 16px pinned sixteen pixels from the top of the
+     SCROLLPORT — underneath it. The card's heading and the first line of the
+     verdict scrolled under the bar and stayed there.
+     `--global-topbar-h` is measured on every navigation (see
+     `publishTopBarHeight`); the fallback is the bar's height at the default
+     type scale, so the card is right even if the measurement never runs. */
+  top: calc(var(--global-topbar-h, 52px) + 12px);
+
+  /* THE CARD SCROLLS, not the page past it.
+     It is `position: sticky`, so once its content is taller than the viewport
+     its top pins and its foot sits below the fold with nothing that can bring
+     it into view: scrolling the page moves the comparison table on the left
+     and leaves this card exactly where it is. On a three-scenario comparison
+     that put the reasoning, the figures and the "also compared" list — the
+     whole reason the card exists — permanently out of reach.
+     Bounded to the viewport and given its own scrollbar instead. The last
+     16px matches `top`, so the card never touches the bottom edge. */
+  /* And bounded by what is left of the window under that bar, rather than by
+     the whole window — which is what made the card taller than the space it
+     had and pushed its foot off the bottom while its head was under the top. */
+  max-height: calc(100vh - var(--global-topbar-h, 52px) - 28px);
+  overflow-y: auto;
+  /* A wheel that reaches the end of this card stops there rather than
+     carrying on and scrolling the page underneath it. */
+  overscroll-behavior: contain;
+  /* Room for the scrollbar so the text does not shift when one appears. */
+  scrollbar-gutter: stable;
+}
+
+.scn-take-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+
+  /* PINNED INSIDE THE CARD, which is itself a scroll container.
+     The card runs to about 1,500px against a viewport of 1,000, so a reader
+     three sections down had scrolled the title off and was looking at a
+     paragraph and a list of sites with nothing saying what they belonged to.
+     A scrolled panel that has lost its own heading is the commonest way a
+     dense screen becomes unreadable (Nielsen #1).
+     The negative margins and the padding let the opaque strip run to the
+     card's own edges, so text passing underneath is covered rather than
+     showing through beside it. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: -20px -22px 12px;
+  padding: 14px 22px 10px;
+  background: linear-gradient(180deg, #faf5ff 0%, #faf5ff 72%, rgba(250, 245, 255, 0) 100%);
+}
+
+.scn-take-icon { font-size: 16px; }
+
+.scn-take-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.scn-take-headline {
+  font-size: 15.5px;
+  font-weight: 800;
+  color: var(--text-1);
+  line-height: 1.35;
+  margin-bottom: 8px;
+}
+
+.scn-take-para {
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.55;
+  margin-bottom: 16px;
+}
+
+/* Which scenarios the paragraph is about, inline rather than as a bold lead.
+   As `<strong>` on its own line it broke the wrap early: a four-line
+   paragraph whose longest line used half the column. */
+.scn-take-scope {
+  font-weight: 700;
+  color: var(--text-1);
+}
+.scn-take-scope::after { content: ':'; }
+
+.scn-take-section-title {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+
+.scn-take-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.scn-take-check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-1);
+  line-height: 1.4;
+}
+
+.scn-take-check-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.scn-take-check-icon.good { background: #16a34a; }
+.scn-take-check-icon.warn { background: #d97706; }
+
+/* Where the words came from. Visibility of system status: a reader can tell
+   "the model wrote this" from "the deterministic template wrote this", and
+   "saved" from "written just now" — which is also how you tell a cached
+   explanation from a fresh model request. */
+.scn-take-source {
+  margin-left: auto;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--purple-100);
+  color: var(--primary);
+  cursor: help;
+}
+
+.scn-take-source.muted {
+  background: var(--bg-subtle, #f1f5f9);
+  color: var(--text-3);
+}
+
+/* The three supporting numbers. Supplied by the backend, formatted in the
+   project's own currency by `formatCurrency` — the model writes none of them.
+   Three, never four: a fourth is a table, and the table is already on the
+   left of this card. */
+.scn-take-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.scn-take-figure {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--purple-100);
+  border-radius: var(--r-md);
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.scn-take-figure-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 3px;
+}
+
+.scn-take-figure-value {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-1);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+/* THE ANSWER, ABOVE EVERYTHING ELSE.
+
+   Four or five label/value pairs — what you changed, what it costs, how much
+   of that is the change itself, what it does to service, what it asks of
+   capacity. This sat across a verdict sentence, three paragraphs of narration,
+   a figure strip and a capacity section, all of it true and none of it in one
+   place, with the recommended actions below the lot.
+
+   A <dl> because these are definitions: a screen reader gets the pairing for
+   free, which a grid of divs does not give it.
+
+   Stacked, not two columns. On a card this narrow a label column would leave
+   the values about 180px and wrap every one — and these are read down, one
+   after another, not compared across. */
+.scn-glance {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--purple-100);
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.scn-glance dt {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 2px;
+}
+
+.scn-glance dd {
+  margin: 0 0 9px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+
+.scn-glance dd:last-child { margin-bottom: 0; }
+
+.scn-glance strong { font-weight: 800; }
+
+/* The distance from today, and its direction. Colour is not the only carrier —
+   every one of these is preceded by an arrow and followed by words. */
+.scn-glance-delta {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.scn-glance-delta.good { color: var(--green); }
+.scn-glance-delta.bad  { color: var(--red); }
+
+/* What the change asks of the network: which sites are full, which are working
+   harder, what was left closed. Rows rather than tiles — there can be five of
+   them, and a tile grid at that count stops being scannable.
+
+   Grid, not flex, so the utilisation column lines up down the list: the reader
+   is comparing those numbers to each other, which is exactly what a ragged
+   right edge prevents. */
+.scn-cap-group-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin: 10px 0 5px;
+}
+
+.scn-cap-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--r-sm, 6px);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--purple-100);
+  margin-bottom: 4px;
+}
+
+.scn-cap-site {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The region, where the upload states one. Second-order information about a
+   site whose name is the thing being read, so it is set as a quiet suffix
+   rather than as its own column. */
+.scn-cap-region {
+  /* Kept on one line. Site names here run to five words, and a chip allowed to
+     wrap left "DC ·" dangling at the end of one line and "NATIONAL" alone on
+     the next. */
+  white-space: nowrap;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-left: 6px;
+}
+
+.scn-cap-util {
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  justify-self: end;
+}
+
+.scn-cap-util.full { color: var(--red); }
+.scn-cap-util.hot  { color: var(--amber); }
+.scn-cap-util.idle {
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Where the number came from and what is new in it, under the site name so it
+   reads as a caption on that row rather than as a third column. */
+.scn-cap-delta {
+  grid-column: 1 / -1;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.scn-cap-more {
+  font-size: 10.5px;
+  color: var(--text-3);
+  padding: 2px 8px 4px;
+}
+
+/* The governance verdict: a statement about the recommended change, not a
+   control. It was a disabled button at the head of the action list, which is
+   a thing that looks pressable and is not. */
+.scn-take-governance {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px dashed var(--purple-200);
+  border-radius: var(--r-md);
+  padding: 8px 10px;
+  margin-bottom: 14px;
+}
+
+.scn-take-governance-tag {
+  flex-shrink: 0;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
+  padding-top: 1px;
+}
+
+/* Recommended actions. Each one performs something this application actually
+   does; none of them approves a change. The label is the verb, the line under
+   it says what will happen — so nothing here is a leap of faith. */
+/* WHOSE FORECAST THIS IS, said before its figures rather than under them.
+   Purple rather than green or amber: it is a statement of origin, not a
+   warning and not a pass — the reader is being told where the numbers came
+   from so they can repeat it accurately. */
+.fc-attn-provenance {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  margin-bottom: 14px;
+  border-radius: var(--r-md);
+  background: var(--primary-light, #f5f3ff);
+  border: 1px solid var(--purple-200, #ddd6fe);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-1);
+}
+
+.fc-attn-provenance-icon {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  color: var(--primary);
+}
+
+.fc-attn-provenance-icon svg { width: 100%; height: 100%; }
+
+.scn-take-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.scn-take-action {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  background: #ffffff;
+  border: 1px solid var(--purple-100);
+  border-radius: var(--r-md);
+  padding: 9px 11px;
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+
+.scn-take-action:hover:not(:disabled) {
+  border-color: var(--purple-300);
+  box-shadow: 0 2px 10px rgba(107, 47, 160, 0.12);
+  transform: translateY(-1px);
+}
+
+.scn-take-action:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.scn-take-action.primary {
+  background: linear-gradient(135deg, #7c3aed 0%, #6B2FA0 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(107, 47, 160, 0.28);
+}
+
+.scn-take-action.primary .scn-take-action-label { color: #ffffff; }
+.scn-take-action.primary .scn-take-action-detail { color: rgba(255, 255, 255, 0.85); }
+
+.scn-take-action-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1.3;
+}
+
+.scn-take-action-detail {
+  display: block;
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+/* A recommendation in the drawer: the same wording as the card, laid out for
+   reading rather than for pressing. Nothing here opens a form — the reader
+   came for the basis of the recommendation, and a control competing with the
+   card's would leave two places to act on one decision. */
+/* THE DETAIL DRAWER'S TABLES.
+   ──────────────────────────────
+   Four columns in a 460px column, at the shared table's 14px cell padding —
+   112px of the width was padding, and the figures were squeezed into what was
+   left. Two consequences, both visible on any scenario that moved volume:
+
+     * the Shift column wrapped between the arrow and the number, so "↑ 2,100"
+       was drawn as "↑" above "2,100" — a quantity separated from its own sign
+       in the one column whose job is to say how much moved;
+     * rows came out at different heights depending on whether their corridor
+       name wrapped, so a column of figures no longer scanned as a column.
+
+   Tighter padding buys back 48px, which is more than the numbers needed. The
+   numeric cells then refuse to wrap at all, and the corridor — the only cell
+   with a natural break in it — takes whatever is left and wraps at its arrow.
+   `table-layout: auto` still sizes the columns to their content; this only
+   says what may not be broken. */
+#scenario-drawer .scn-drawer-table th,
+#scenario-drawer .scn-drawer-table td {
+  padding: 8px 9px;
+}
+
+#scenario-drawer .scn-drawer-table th:first-child,
+#scenario-drawer .scn-drawer-table td:first-child {
+  padding-left: 2px;
+}
+
+#scenario-drawer .scn-drawer-table th:last-child,
+#scenario-drawer .scn-drawer-table td:last-child {
+  padding-right: 2px;
+}
+
+/* A figure and its sign are one token. `&nbsp;` in the markup holds them
+   together; this holds the thousands separators together too. */
+#scenario-drawer .scn-drawer-table .num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The one cell that MAY wrap, and only where it reads as a continuation —
+   after the arrow, never inside an identifier. */
+#scenario-drawer .scn-drawer-table .scn-corridor-cell {
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
+}
+
+.scn-drawer-action {
+  border-left: 3px solid var(--primary);
+  background: var(--bg-subtle, #f8fafc);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  padding: 9px 12px;
+  margin-bottom: 8px;
+}
+
+.scn-drawer-action.is-statement { border-left-color: var(--border-light); }
+
+.scn-drawer-action-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1.35;
+}
+
+.scn-drawer-action-reason {
+  font-size: 11.5px;
+  color: var(--text-2);
+  line-height: 1.55;
+  margin-top: 3px;
+}
+
+.scn-drawer-download { margin-top: 0; flex: 1; }
+
+/* A recommendation that is a FINDING rather than a control.
+   "No network change is indicated" is an answer to "what should I do", and
+   the worst thing to do with it is leave the space blank — but it must not
+   look pressable either, because there is nothing behind it. Same block,
+   no hover, no cursor, and a flat ground so it reads as prose. */
+.scn-take-action.is-statement {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-subtle, #f8fafc);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--r-md);
+  padding: 9px 11px;
+  cursor: default;
+}
+
+/* What pressing it does, said on the control (Nielsen #2: the system's
+   language, not ours). Without it "Increase capacity at Western DC" reads as
+   a claim that capacity HAS been increased. */
+.scn-take-action-go {
+  display: block;
+  margin-top: 5px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  color: var(--primary);
+}
+
+.scn-take-action.primary .scn-take-action-go { color: rgba(255, 255, 255, 0.95); }
+
+/* The ways INTO the analysis, under the recommendations and visibly not among
+   them. Quieter than an action, because reading the detail is not a decision. */
+.scn-take-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--purple-100, #e9d5ff);
+}
+
+.scn-take-secondary {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-1);
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: var(--r-md);
+  padding: 8px 11px;
+  cursor: pointer;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.scn-take-secondary:hover { border-color: var(--purple-300); background: #ffffff; }
+.scn-take-secondary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.scn-take-secondary-sub {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-3);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+/* Borrowed from the deep dive rather than restyled: the same control doing
+   the same job, so a reader who has pressed one recognises this (Nielsen #4). */
+.scn-take-download { margin-top: 0; font-size: 12px; }
+
+/* The technical account, collapsed. The conclusion above is said once; this
+   is where the caveats and the working live. */
+.scn-take-details {
+  margin-top: 12px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.scn-take-details > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--primary);
+  list-style: none;
+}
+
+.scn-take-details > summary::-webkit-details-marker { display: none; }
+.scn-take-details > summary::before { content: '▸ '; }
+.scn-take-details[open] > summary::before { content: '▾ '; }
+
+.scn-take-details ul {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  line-height: 1.55;
+}
+
+.scn-take-details li { margin-bottom: 5px; }
+
+.scn-take-tradeoff {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #92400e;
+  margin-bottom: 16px;
+}
+
+.scn-take-tradeoff-icon { font-size: 13px; }
+
+/* Two findings can share the band — the ranking's trade-off and the
+   briefing's risk. They are separate sentences, so they are separate lines. */
+.scn-take-tradeoff-line { display: block; line-height: 1.5; }
+.scn-take-tradeoff-line + .scn-take-tradeoff-line { margin-top: 6px; }
+
+.scn-take-review-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  border: none;
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, #7c3aed 0%, #6B2FA0 100%);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(107, 47, 160, 0.3);
+  transition: all var(--t-fast);
+  margin-bottom: 12px;
+}
+
+.scn-take-review-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(107, 47, 160, 0.4);
+}
+
+.scn-take-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scn-take-links a {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.scn-take-links a:hover { text-decoration: underline; }
+
+/* Single Scenario 2-Column Layout — narrower table, wider NetGravity's take */
+.scn-single-2col {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 20px;
+  align-items: start;
+}
+
+.scn-single-left {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* THE COLUMN THE CARD STICKS INSIDE, given something to stick inside.
+
+   `.scn-single-2col` is `align-items: start`, so this column was exactly as
+   tall as the card in it. A sticky element travels within its own containing
+   block and no further, so with zero travel the card did not stick at all: it
+   scrolled up with the page, under the top bar, and out of the window —
+   while its own `max-height` and internal scrollbar made it look as though it
+   were pinned.
+
+   Stretched to the row, so the card stays pinned for as long as the
+   comparison table beside it is on screen. */
+.scn-single-right {
+  align-self: stretch;
+  min-width: 0;
+}
+
+.scn-single-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Comparison Tables */
+.scn-table-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* The comparison table's empty state.
+   It used to carry an inline `padding: 18px` inside a card that already pads
+   16px/20px, so one sentence sat 34px in from the card's edge — out of line
+   with the "Comparison" heading directly above it — in a 972x134 box at 6%
+   ink coverage, the sparsest card in the product. Aligned to the heading,
+   and as tall as the sentence it holds. */
+.scn-empty-note {
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.55;
+  padding: 2px 0 6px;
+  max-width: 78ch;
+}
+
+.scn-table-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.scn-table-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.scn-table-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scn-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.scn-data-table th {
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border-light);
+  text-align: left;
+  background: var(--bg-subtle);
+}
+
+.scn-data-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-1);
+}
+
+.scn-data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.scn-th-rec {
+  background: rgba(107, 47, 160, 0.04) !important;
+  color: var(--primary) !important;
+  border-top: 2px solid var(--primary);
+  border-left: 1px solid var(--purple-100);
+  border-right: 1px solid var(--purple-100);
+}
+
+.scn-td-rec {
+  background: rgba(107, 47, 160, 0.02);
+  border-left: 1px solid var(--purple-100);
+  border-right: 1px solid var(--purple-100);
+}
+
+.scn-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 10.5px;
+  color: var(--text-3);
+  cursor: pointer;
+  margin-left: 8px;
+  transition: all var(--t-fast);
+}
+
+.scn-info-btn:hover {
+  color: var(--primary);
+  background: var(--purple-50);
+}
+
+/* Visual Context Card */
+.scn-visual-context-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.scn-map-wrap {
+  /* Taller than the flat 360px it was.
+     `fitBounds` fits the network in BOTH dimensions, so the short dimension
+     decides the zoom: in a 1368x358 box a network shaped like the continental
+     United States was framed by its height, and the extra width filled with
+     two thousand miles of empty Atlantic. A taller box brings the zoom up and
+     the network fills the frame — and the space it takes was empty page
+     underneath it anyway. */
+  /* Declared once and read by the key inside it. A Leaflet control sits in a
+     chain of auto-height ancestors, so a `max-height: 100%` on it resolves
+     against nothing and is dropped — the key stayed 456px tall in a 360px map
+     and `overflow: hidden` below simply cut its top off. */
+  --scn-map-h: clamp(360px, 46vh, 520px);
+  height: var(--scn-map-h);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  position: relative;
+  margin-top: 10px;
+  border: 1px solid var(--border-light);
+}
+
+/* ─── Map zoom affordances ─────────────────────────────────
+   The fit control sits under Leaflet's own +/- bar, in the same
+   bottom-left corner, so the three zoom actions are one group. */
+.map-fit-control a {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+}
+
+.map-fit-control a:hover { color: var(--primary); }
+
+/* Shown only when the wheel is used over a compact map that has not been
+   clicked yet — see armCompactZoom(). */
+.map-zoom-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.96);
+  z-index: 1200;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.82);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.map-zoom-hint.is-visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* An armed map owns the wheel, and says so with the same purple every
+   focused control on this product uses. */
+.is-zoom-armed { box-shadow: inset 0 0 0 2px rgba(146, 24, 234, 0.45); }
+
+/* Multi-Scenario Table */
+.scn-multi-table-wrap {
+  overflow-x: auto;
+}
+
+
+/* Cell Highlight Colors */
+.cell-pos {
+  background: #f0fdf4 !important;
+  color: #166534 !important;
+  font-weight: 700;
+}
+
+.cell-warn {
+  background: #fffbeb !important;
+  color: #9a3412 !important;
+  font-weight: 700;
+}
+
+.cell-neg {
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+  font-weight: 700;
+}
+
+
+.my-scenario-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+}
+
+/* Scenario Cards Row */
+.scenario-cards-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+}
+
+.scn-rec-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: all var(--t-fast);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  box-shadow: var(--shadow-sm);
+}
+
+.scn-ai-chip {
+  background: #fcf8ff;
+  border-left: 3px solid var(--primary);
+  border-radius: 3px;
+  padding: 6px 9px;
+  font-size: 11px;
+  color: var(--text-1);
+  line-height: 1.45;
+  margin-top: 8px;
+}
+
+.scn-rec-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary-light);
+  box-shadow: var(--shadow-md);
+}
+
+.scn-rec-card.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(107, 47, 160, 0.15), var(--shadow-md);
+  background: #fdfaff;
+}
+
+.scn-rec-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.scn-num-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-2);
+  background: var(--bg-subtle);
+}
+
+.scn-rec-card.recommended .scn-num-badge {
+  background: var(--green-50, #f0fdf4);
+  color: var(--green, #16a34a);
+  border-color: rgba(22, 163, 74, 0.3);
+}
+
+.scn-card-body {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.scn-card-left {
+  flex: 1;
+}
+
+.scn-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.scn-card-desc {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.45;
+  margin-bottom: 6px;
+}
+
+.scn-card-highlight {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.35;
+}
+
+.scn-card-right {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 80px;
+}
+
+.scn-stat-unit {
+  display: flex;
+  flex-direction: column;
+}
+
+.scn-stat-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.scn-stat-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.scn-stat-val.positive {
+  color: var(--green, #16a34a);
+}
+
+.scn-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-light);
+}
+
+.scn-conf-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.scn-conf-badge.high {
+  background: var(--purple-50);
+  color: var(--primary);
+}
+
+.scn-conf-badge.medium {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+/* Comparison Table */
+.scenario-comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.scenario-comparison-table th {
+  padding: 10px 14px;
+  text-align: center;
+  font-weight: 600;
+  background: var(--bg-subtle);
+  border-bottom: 2px solid var(--border);
+  color: var(--text-2);
+}
+
+.scenario-comparison-table th:first-child {
+  text-align: left;
+  min-width: 160px;
+}
+
+.scenario-comparison-table th.highlight-col {
+  background: #fbf8fd;
+  color: var(--primary);
+  border-top: 2px solid var(--primary);
+  border-left: 1px solid var(--purple-100);
+  border-right: 1px solid var(--purple-100);
+}
+
+.scenario-comparison-table td {
+  padding: 10px 14px;
+  text-align: center;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-1);
+}
+
+.scenario-comparison-table td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.scenario-comparison-table td.highlight-col {
+  background: #fcf9fe;
+  font-weight: 700;
+  color: var(--primary);
+  border-left: 1px solid var(--purple-100);
+  border-right: 1px solid var(--purple-100);
+}
+
+.scenario-comparison-table tr:hover td {
+  background: #faf8fc;
+}
+
+.scenario-comparison-table tr:hover td.highlight-col {
+  background: #f7effe;
+}
+
+/* Create Scenario Pop-Up Modal (Blurs background) */
+.scenario-toolbox-modal {
+  max-width: 580px;
+  width: 90vw;
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(107, 47, 160, 0.1);
+  padding: 24px 28px;
+  animation: modalScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@keyframes modalScaleUp {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.toolbox-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 18px;
+}
+
+.toolbox-step {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.toolbox-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--purple-50);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.toolbox-step-content {
+  flex: 1;
+}
+
+.toolbox-step-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: 8px;
+}
+
+.scn-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.scn-type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 6px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all var(--t-fast);
+  text-align: center;
+}
+
+.scn-type-card:hover {
+  background: var(--bg);
+  border-color: var(--primary-light);
+  transform: translateY(-1px);
+}
+
+.scn-type-card.active {
+  background: var(--purple-50);
+  border-color: var(--primary);
+  box-shadow: 0 2px 6px rgba(107, 47, 160, 0.15);
+}
+
+.scn-type-icon {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.scn-type-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.2;
+}
+
+.toolbox-accordion-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 0;
+}
+
+/* The scenario page's own run display is gone. `.agent-execution-view` held a
+   six-step list drawn inside the modal while the agent dialog reported the
+   same request in front of it; `.agent-telemetry-box` and `agentPulseGlow`
+   dressed the deleted `agent-reasoning.js` pipeline. Nothing referenced any
+   of the three. The loading dialog is the single loading state. */
+
+
+.telemetry-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.45;
+  animation: fadeIn 0.25s ease;
+}
+
+.telemetry-tag {
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+}
+
+.telemetry-tag.agent { background: #6366f1; color: #ffffff; }
+.telemetry-tag.milp { background: #8b5cf6; color: #ffffff; }
+.telemetry-tag.stress { background: #f59e0b; color: #000000; }
+.telemetry-tag.done { background: #10b981; color: #ffffff; }
+
+/* Scenario Detail Drawer */
+.scenario-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  z-index: 99999;
+  display: none;
+  justify-content: flex-end;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.scenario-drawer-overlay.visible {
+  display: flex;
+}
+
+.scenario-drawer {
+  width: 580px;
+  max-width: 92vw;
+  background: var(--bg-card);
+  height: 100vh;
+  overflow-y: auto;
+  padding: 24px 28px;
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.22);
+  position: relative;
+  z-index: 100000;
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.scn-drawer-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.scn-section-box {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.scn-change-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 12.5px;
+}
+
+.scn-change-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.scn-outcome-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.scn-outcome-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px;
+  text-align: center;
+}
+
+.scn-robust-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 12.5px;
+}
+
+.scn-robust-row:last-child {
+  border-bottom: none;
+}
+
+.scn-ai-box {
+  background: #fdfaff;
+  border: 1px solid var(--purple-100);
+  border-radius: var(--r-md);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+/* Metric Customizer Modal */
+.metric-category-group {
+  border: 1px solid var(--border-light);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+}
+
+.metric-category-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.metric-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.metric-check-item {
+  font-size: 12px;
+  color: var(--text-1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+/* ─── Responsive ──────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .scenario-cards-row { grid-template-columns: repeat(2, 1fr); }
+  .scenario-workspace-layout { flex-direction: column; }
+  .scenario-toolbox-pane { width: 100%; position: static; }
+}
+@media (max-width: 1024px) {
+  .sidebar { width: 180px; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .impact-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .scenario-cards-row { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: 1fr; }
+  .home-controls { flex-direction: column; gap: var(--space-md); align-items: flex-start; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   3D Digital Twin — Three.js Styles (Light Mode · India Map)
+   ═══════════════════════════════════════════════════════════ */
+
+.twin3d-card {
+  border-radius: var(--r-lg);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  position: relative;
+}
+
+.twin3d-container {
+  width: 100%;
+  height: 560px;
+  position: relative;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  cursor: grab;
+  background: #f8fafc;
+}
+.twin3d-container:active { cursor: grabbing; }
+
+.twin3d-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: var(--r-lg);
+}
+
+/* ─── Floating Stats Overlay (Light Theme) ───────────────── */
+/* Top-left, on the 2D map and the 3D twin alike. The 2D copy carried an
+   inline `left:auto; right:16px`, so the same three figures were on opposite
+   sides of the same card depending on which view you were in — and the eye
+   had to find them again every time you toggled. Leaflet's zoom control moves
+   to the bottom-left to make room (see initMap). */
+.twin3d-stats-overlay {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  /* Wraps so the country caption can sit on a second line directly under the
+     stat cards without a hand-measured `top` that a change to the cards'
+     padding would silently break. */
+  flex-wrap: wrap;
+  gap: 10px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* ─── which country this network is in ────────────────────────────────
+   The map already answers this — it paints the countries the network has
+   sites in white against the grey of everywhere else — but only for a reader
+   who recognises the coastline. Naming it is the same fact in words. The
+   names come from the same point-in-polygon pass that chooses the white land
+   and the frame (`networkCountryLabel`), so the caption cannot disagree with
+   what is drawn beneath it. */
+.twin3d-country {
+  flex: 0 0 100%;
+  margin-top: -2px;
+}
+
+.twin3d-country[hidden] { display: none; }
+
+.twin3d-country-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 10px;
+  padding: 6px 12px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  max-width: 340px;
+}
+
+.twin3d-country-pill svg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+  flex: 0 0 auto;
+}
+
+.twin3d-country-key {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.twin3d-country-name {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.twin3d-stat {
+  /* Opaque, and no `backdrop-filter`.
+     A backdrop filter makes the compositor snapshot and blur everything
+     behind the element on every paint — and these sit on top of a WebGL
+     canvas, so every scroll frame paid for three of them. Over an already
+     opaque map the blur was invisible anyway; the alpha goes up instead. */
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 10px;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.twin3d-stat-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-1);
+  line-height: 1.2;
+}
+
+.twin3d-stat-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ─── Camera Hint (Light Theme) ──────────────────────────── */
+.twin3d-hint {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* What the algorithm recommends changing about this network, in words, above
+   the twin that draws it. A slate node with a ring is a signal a reader has to
+   learn; the site's NAME is the thing they act on, and it must not be
+   reachable only by clicking the right dot.
+
+   Deliberately NOT an alert. A recommendation is not a warning, and a red
+   strip across the top of the screen every time the engine has a suggestion
+   teaches the reader to ignore the colour. This is the card surface the rest
+   of the product uses, with the primary hue on its edge — the same weight as
+   any other statement the engine makes.
+
+   Always present on this screen: "no change is recommended" is a finding, and
+   a reader who cannot see it has to guess whether the engine had nothing to
+   say or was never asked. */
+.twin-change-note {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 14px; margin-bottom: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border); border-left: 3px solid var(--purple-600);
+  border-radius: var(--r-md);
+  font-size: 12.5px; color: var(--text-2); line-height: 1.55;
+}
+.twin-change-note strong { color: var(--text-1); }
+.twin-change-note .twin-change-what { color: var(--purple-700); font-weight: 700; }
+/* Nothing to act on reads quieter than something to act on. */
+.twin-change-note.is-quiet { border-left-color: var(--border); }
+
+.twin3d-hint span {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 20px;
+  padding: 6px 18px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  letter-spacing: 0.02em;
+}
+
+/* ─── 3D Twin Legend (node types + DC utilisation color key) ──── */
+/* ═══════════════════════════════════════════════════════════
+   THE TWIN'S LEGEND — one key, both views
+   ═══════════════════════════════════════════════════════════
+   There were two: `.twin3d-legend`, written out in index.html, and a block
+   of inline styles inside map.js's `addLegend`. Two hand-maintained copies
+   of the same key on a page whose two views the reader switches between with
+   one button — and they had already drifted, the 2D one keying the DC ring
+   in #dc2626/#f59e0b/#22c55e and the 3D one keying the identical bands in
+   #b91c1c/#b45309/#047857.
+
+   Both are now written by `twinLegendHtml()` (js/twin-legend.js) into this
+   one set of rules. `.tw-legend-2d` is the Leaflet control, `.tw-legend-3d`
+   the absolutely-positioned panel over the canvas.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════
+   THE DIGITAL TWIN'S STAGE
+   ═══════════════════════════════════════════════════════════
+   The map WAS the screen and did not behave like it. A toolbar row, a
+   recommendation strip, a fixed-height card and a strip of per-facility
+   figures underneath meant the twin itself got about half the window, on the
+   one screen in the product whose entire content is a picture.
+
+   The stage is what is left, and it takes the height that is there. The
+   measured `--global-topbar-h` is the same variable the scenario card pins
+   against, so the two screens agree about where the page starts. */
+.twin-stage {
+  position: relative;
+  height: calc(100vh - var(--global-topbar-h, 63px) - var(--twin-stage-gap, 96px));
+  min-height: 420px;
+}
+
+.twin-stage .twin-view-panel {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  height: 100%;
+}
+
+.twin-stage .map-container,
+.twin-stage .twin3d-container {
+  height: 100% !important;
+}
+
+/* The 2D/3D pair, on the page title's own line. */
+.sub-topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+/* ─── The key, docked ───────────────────────────────────────
+   Bottom-anchored, so the panel above the bar grows UPWARD: the handle is at
+   the bottom edge, and a drawer that opened downward would leave it pointing
+   out of the card. */
+.tw-legend-dock {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: min(560px, calc(100% - 28px));
+}
+
+/* The handle. Reads as one control, not as a card with a title. */
+.tw-legend-dock-bar {
+  appearance: none;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.10);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+.tw-legend-dock-bar:hover { border-color: var(--purple-200); color: var(--text-1); }
+
+/* The three glyphs, at a glance, without opening anything. */
+.tw-legend-dock-peek {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.tw-legend-dock-chevron { transition: transform .18s ease; }
+.tw-legend-dock-bar[aria-expanded="true"] .tw-legend-dock-chevron {
+  transform: rotate(180deg);
+}
+
+/* THE SCENARIO KEY IS BOUNDED BY ITS OWN MAP, not by the window.
+   Its stage is `--scn-map-h` tall and clips what overflows, so the viewport
+   height the twin's dock is measured against is the wrong ruler here: a panel
+   sized to the window would have its top cut off by the map wrap.
+
+   It keeps `tw-legend-below`'s column layout inside the dock, because it
+   carries FOUR groups to the twin's three — as one narrow column it would be
+   taller than the map it sits in. */
+#scn-legend-dock .tw-legend-dock-panel {
+  max-height: calc(var(--scn-map-h, 420px) - 84px);
+  max-width: min(720px, calc(100% - 4px));
+  /* The dock spaces its own children; the below-the-map margin would push the
+     panel off the bar it belongs to. */
+  margin-top: 0;
+}
+
+/* Open, it is the same key the 3D panel carried — bounded to the stage so a
+   short window scrolls it rather than running it off the top. */
+.tw-legend-dock-panel {
+  order: -1;
+  max-height: calc(100vh - var(--global-topbar-h, 63px) - 190px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  max-width: 100%;
+}
+
+.tw-legend {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 11px;
+  padding: 12px 14px;
+  /* 12px, up from the 10px this was set at. The key to the whole map was two
+     steps below the application's smallest body size, which made the one
+     thing on screen that explains the picture the hardest to read. */
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  max-width: 232px;
+}
+
+/* The scenario key's LAYOUT: four groups across, not down.
+   ─────────────────────────────────────────────────────
+   It carries the twin's three groups plus the encodings only a scenario map
+   has, and as a single column that is taller than the map it belongs to. Laid
+   out as equal columns it is about a fifth of the height.
+
+   It now lives INSIDE the dock (`#scn-legend-dock`), opened by the same "Key"
+   bar the Digital Twin uses — see index.html. It was a permanently-expanded
+   strip below the map, which is a fifth of a panel spent on a key the reader
+   has already met on the twin. This class is the layout only; the dock owns
+   where it sits and when it is shown. */
+.tw-legend-below {
+  /* A GRID, NOT A FLEX ROW.
+     `flex: 1 1 165px` sized each column to its own content, so the four came
+     out at four different widths — the scenario group, which carries the
+     longest sentences, got the narrowest share and its labels ran off the
+     card. Equal tracks that wrap as whole columns is what the strip was
+     always meant to be. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  align-items: start;
+  gap: 0;
+  /* `.tw-legend` caps at 232px for a floating panel. This one is the width of
+     the card. */
+  max-width: none;
+  margin-top: 10px;
+  padding: 10px 4px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  /* Part of the card it sits in, not a panel floating over a map. */
+  background: var(--bg-subtle, #f8fafc);
+  box-shadow: none;
+  border-color: var(--border-light);
+}
+
+/* Each group is a column. `flex: 1` with a floor rather than a fixed width:
+   the flow-band group's labels are as long as the network's largest corridor
+   is wide ("100,000 – 500,000"), and a fixed column wrapped them. */
+.tw-legend-below .tw-legend-group {
+  min-width: 0;
+  padding: 0 14px;
+}
+
+/* EVERY COLUMN'S ROWS START ON THE SAME LINE.
+   Two of the four headings carry a parenthetical unit that wraps to a second
+   line — "Flow volume (units/month)", "Distribution centre load (its ring…)"
+   — and two do not. So two columns' first rows sat a line lower than the
+   others, and a strip of four aligned lists read as four lists at random
+   heights. Reserving the second line in every heading costs one line of the
+   two that do not need it and lines the whole strip up. */
+.tw-legend-below .tw-legend-title {
+  min-height: 2.5em;
+}
+
+/* The stacked key separates groups with a rule above each. Side by side, the
+   rule belongs between the columns. */
+.tw-legend-below .tw-legend-group + .tw-legend-group {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+  border-left: 1px solid var(--border-light);
+}
+
+.tw-legend-below .tw-legend-row { gap: 7px; }
+
+/* THE LABELS WRAP; THE BAND FIGURES DO NOT.
+   A blanket `nowrap` kept the short rows tidy and pushed the scenario group's
+   sentences — "Corridor this plan moves volume on" — straight off the edge of
+   the card. Those are sentences and should wrap like sentences. A flow band's
+   range is a quantity and must not break across lines, so it keeps the rule,
+   selected by the swatch that precedes it. */
+.tw-legend-below .tw-legend-label { white-space: normal; }
+.tw-legend-below .tw-legend-line + .tw-legend-label { white-space: nowrap; }
+.tw-legend-below .tw-legend-row { align-items: flex-start; }
+/* A flex item's default `min-width: auto` refuses to shrink below its content,
+   so a long label pushed out of the column instead of wrapping inside it. */
+.tw-legend-below .tw-legend-label { min-width: 0; overflow-wrap: break-word; }
+.tw-legend-below .tw-legend-swatch { flex: 0 0 auto; }
+
+
+.tw-legend-group + .tw-legend-group {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid #eef0f3;
+}
+
+/* Each group names the question it answers. The previous version's heading
+   was the word "Network" over three coloured dots, which tells a reader what
+   the panel is filed under rather than what it keys — Nielsen #6. */
+.tw-legend-title {
+  font-weight: 800;
+  font-size: 10.5px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+}
+
+.tw-legend-unit {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+.tw-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  min-height: 20px;
+}
+
+/* The marker glyph itself, at the size it is drawn on the map, so the key is
+   recognised rather than decoded. */
+.tw-legend-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* A rule at the weight the corridor is actually drawn at. A swatch of colour
+   cannot key a thickness. */
+.tw-legend-line {
+  display: inline-block;
+  width: 30px;
+  border-radius: 999px;
+  background: #94a3b8;
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
+/* And a ring, because what the map colours on a DC is its ring, not its
+   fill — the old key showed a filled dot for a thing that is an outline. */
+.tw-legend-ring {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 3px solid currentColor;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.tw-legend-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tw-legend-note {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-3);
+  white-space: normal;
+}
+
+/* The count sits at the end of its row, right-aligned so the three numbers
+   form a column the eye can compare without reading the labels again. */
+.tw-legend-count,
+.map-legend-count {
+  margin-left: auto;
+  padding-left: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+
+/* ─── The name on the node, with its id in it ───────────────
+   Both views. Every facility name used to live in a hover tooltip, so
+   reading the map meant pointing at one site at a time; and no view ever
+   showed the id, which is the column the reader's own workbook is keyed on.
+
+   `pointer-events: none` throughout: the label names the node, it is not a
+   second thing to click, and a pill sitting over a marker would otherwise
+   eat the click that opens the facility panel. */
+.map-node-label,
+/* The node's own mark, on the 3D scene, at the size the map draws it and the
+   key prints it. Sized inline from `NODE_STYLE` so there is one number.
+
+   `pointer-events: none` deliberately: the badge sits over the node, and the
+   scene picks nodes by raycasting the canvas underneath. A badge that took
+   the pointer would make a node unhoverable by covering it. */
+.twin3d-node-glyph {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid transparent;
+  border-radius: 50%;
+  line-height: 1;
+  pointer-events: none;
+  will-change: transform;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.35);
+}
+
+.twin3d-node-label {
+  position: absolute;
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text-1, #1a1a2e);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 6px;
+  padding: 1px 6px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+}
+
+/* 2D: under the marker, centred on it. */
+.map-node-label {
+  top: 100%;
+  left: 50%;
+  transform: translate(-50%, 4px);
+  z-index: 2;
+}
+
+.map-node-label.is-closed {
+  color: var(--text-3, #94a3b8);
+  text-decoration: line-through;
+}
+
+/* 3D: positioned per frame by `updateNodeLabels()`, which writes its own
+   transform — so this sets everything except the position. */
+.twin3d-label-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  overflow: hidden;
+}
+
+.twin3d-node-label {
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DIGITAL TWIN PAGE — one screen, three equal boxes
+   ═══════════════════════════════════════════════════════════ */
+
+/* The page is a column: toolbar, map, then the three tables. Declared on
+   `#tab-twin.active` so `.tab-panel { display: none }` still hides it — an
+   unqualified `#tab-twin { display: flex }` is an ID selector and would beat
+   that class outright, showing this page under every other tab. */
+#tab-twin.active {
+  display: flex;
+  flex-direction: column;
+  /* At least the window, and taller when the map and the tables ask for it.
+     The three boxes below the map still scroll INSIDE themselves — that is
+     what keeps their heights level and their headers in place — but the map
+     itself is now the size it needs to be read at rather than whatever was
+     left over on a short screen. */
+  flex: 1 0 auto;
+  min-height: 0;
+}
+
+#tab-twin .twin-toolbar { flex: 0 0 auto; }
+
+/* A STATED height, not "whatever is left".
+   `flex: 1 1 auto` here fed a loop: the panel had no definite height, so the
+   `height: 100%` on the WebGL container below resolved to auto, the canvas
+   fell back to its own drawing-buffer height, that became the panel's content
+   height, the panel grew to it, and the next resize set a bigger buffer. It
+   settled at a 1361px map in a 1050px window. A number breaks the loop, and
+   it is also the honest way to say how tall this card should be: taller than
+   the ~460px it used to get, and the same on every screen of a given size. */
+#tab-twin .twin-view-panel {
+  /* THE STAGE IS THE DEFINITE HEIGHT NOW.
+     This was `clamp(420px, 58vh, 660px)` — a number, chosen to break the
+     feedback loop described above by giving the WebGL container something
+     definite to resolve `height: 100%` against. `.twin-stage` does that job
+     instead, and does it better: it is the height that is actually left on
+     the screen rather than a fraction of the viewport that leaves a band of
+     empty card underneath the map. The panels are `position: absolute;
+     inset: 0` inside it, which is as definite as a number and follows the
+     window. */
+  flex: 0 0 auto;
+  height: 100%;
+}
+
+#tab-twin .twin-view-panel .twin3d-container,
+#tab-twin .twin-view-panel .map-container,
+#tab-twin .twin-view-panel .map-container.tall {
+  height: 100%;
+  min-height: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   THE FIGURES BELOW THE MAP
+   ═══════════════════════════════════════════════════════════
+   This was three cards holding three tables — Plants, Distribution Centres,
+   Demand Markets — each scrolling inside a stated height so the row stayed
+   level. They listed every node in the network and ignored the Facility and
+   Period controls at the top of the screen completely.
+
+   One band now, about the site the reader has selected, in the period they
+   have selected. It takes the height its own figures need, so nothing on
+   this page scrolls inside itself any more.
+   ═══════════════════════════════════════════════════════════ */
+
+.tw-metrics {
+  flex: 0 0 auto;
+  margin-top: 14px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border, #eef0f3);
+  border-radius: 14px;
+  padding: 15px 18px 17px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.tw-metrics:empty { display: none; }
+
+.tw-metrics-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 13px;
+}
+
+.tw-metrics-title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--text-1, #1a1a2e);
+  line-height: 1.3;
+}
+
+.tw-metrics-scope {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  color: var(--text-2, #5a5a72);
+}
+
+.tw-metrics-hint {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-3, #94a3b8);
+}
+
+/* The site's status, and the way into everything else known about it. */
+.tw-metrics-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.tw-metrics-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border: 1px solid var(--purple-200, #d4bfe8);
+  border-radius: 8px;
+  background: var(--bg-card, #ffffff);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary, #6B2FA0);
+  cursor: pointer;
+  transition: background var(--transition, .2s ease);
+}
+
+.tw-metrics-cta:hover { background: var(--purple-50, #f5f0fa); }
+.tw-metrics-cta:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Auto-fit rather than a fixed column count: the facility band has five
+   figures and the network band four, and neither should leave an empty cell
+   at the end of its row. */
+.tw-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.tw-metric {
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: var(--bg-subtle, #fafafa);
+  border: 1px solid #f1f1f4;
+  min-width: 0;
+}
+
+.tw-metric-value {
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--text-1, #1a1a2e);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The utilisation band, in the same three colours the DC's ring on the map
+   uses and the legend keys — so the figure and the node agree at a glance. */
+.tw-metric-value.is-critical { color: #dc2626; }
+.tw-metric-value.is-stress   { color: #b45309; }
+.tw-metric-value.is-healthy  { color: #15803d; }
+
+.tw-metric-label {
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-1, #1a1a2e);
+}
+
+.tw-metric-sub {
+  margin-top: 1px;
+  font-size: 10.5px;
+  color: var(--text-3, #94a3b8);
+  line-height: 1.35;
+}
+
+.tw-metrics-note {
+  margin: 11px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-3, #94a3b8);
+}
+
+@media (max-width: 900px) {
+  .tw-metrics-head { flex-direction: column; gap: 6px; }
+}
+
+/* ════════════════════════════════════════════════════════
+   FORECAST PAGE — Dump/Demand forecast.png
+   ════════════════════════════════════════════════════════
+
+   The same two-column, two-row grid as the Overview's `.ov-main`, and for the
+   same reason: the alert takes the height its text needs, the attention card
+   absorbs the rest, and the tall thing on the right spans both so it runs the
+   full height of the column beside it. Here the tall thing is the chart.
+
+   The alert, the attention card and the signals row are the Overview's own
+   components, by class — no second stylesheet for the same three cards, and
+   no second renderer (see renderForecastPage in app.js). Only the chart card
+   below is new.
+   ════════════════════════════════════════════════════════ */
+
+#tab-forecast.active {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1 0 auto;
+  min-height: 0;
+}
+
+.fc-main {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.6fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  flex: 0 0 auto;
+  /* The first screen, in full — the same rule Home's `.ov-main` follows, off
+     the same measured variable (sizePageToWindow() in app.js). The signals
+     row therefore begins below the fold. */
+  /* Clearance for the fixed "Ask Netgravity" button (bottom: 28px, height:
+     52px — see .floating-chatbot-fab). On Home the button lands on the
+     corner of a map and nothing is lost; here it lands on the x-axis, and an
+     axis whose last two periods are behind a button is an axis that has to
+     be scrolled to read. */
+  min-height: calc(100vh - var(--fc-main-top, 150px) - var(--ng-fab-clearance, 84px));
+  /* And no MORE than one screen. Without the cap the row grows to whatever
+     the attention card's findings list happens to be, which pushes the chart
+     down until its x-axis is under the floating button again. Bounded, the
+     findings list scrolls inside its own card (`.ov-attn-body`) and the
+     chart stays where the reader left it. */
+  max-height: calc(100vh - var(--fc-main-top, 150px) - var(--ng-fab-clearance, 84px));
+}
+
+/* The demand alert that took row 1 is gone; the attention card has the column. */
+.fc-main > .ov-attn-card  { grid-column: 1; grid-row: 1 / span 2; }
+.fc-main > .fc-chart-card { grid-column: 2; grid-row: 1 / span 2; }
+
+/* ─── the chart card ────────────────────────────────────── */
+.fc-chart-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+  padding: 16px 18px 14px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-light, #eceef2);
+  border-radius: 14px;
+}
+
+.fc-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+/* 16px / 700 — `.ov-attn-title`'s own values, so the three card headings on
+   this page are one heading. */
+.fc-chart-title {
+  display: flex;
+  align-items: center;
+  /* One line, as in the mockup. Wrapping put "Demand —" on its own line
+     above the series whenever the market and product names were long, which
+     on a real catalogue is most of them; the picker truncates instead, and
+     the full name is in its own option list and in the methodology panel. */
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+}
+
+.fc-chart-title-prefix { flex-shrink: 0; }
+
+/* A select that reads as the rest of the title.
+   The caret is drawn beside it rather than as a background image so the
+   control can be sized to its own text and still show that it opens. */
+.fc-series-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: 7px;
+  padding: 1px 4px 1px 2px;
+  margin-left: -2px;
+  transition: background var(--t-fast, .15s ease);
+}
+
+.fc-series-wrap:hover { background: #f4f1fa; }
+
+.fc-series-select {
+  max-width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  color: var(--primary);
+  cursor: pointer;
+  appearance: none;
+  text-overflow: ellipsis;
+}
+
+.fc-series-select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.fc-series-select:disabled { color: var(--text-3); cursor: not-allowed; }
+
+.fc-series-caret {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.fc-chart-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 13px — `.btn`'s size, which is the application's button scale. */
+.fc-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border, #e2e6ec);
+  border-radius: 9px;
+  background: var(--bg-card, #ffffff);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--t-fast, .15s ease), color var(--t-fast, .15s ease);
+}
+
+.fc-ghost-btn svg { width: 14px; height: 14px; }
+.fc-ghost-btn:hover { border-color: var(--primary); color: var(--primary); }
+.fc-ghost-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.fc-menu-wrap { position: relative; }
+
+.fc-kebab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border, #e2e6ec);
+  border-radius: 9px;
+  background: var(--bg-card, #ffffff);
+  color: var(--text-3);
+  cursor: pointer;
+  transition: border-color var(--t-fast, .15s ease), color var(--t-fast, .15s ease);
+}
+
+.fc-kebab-btn svg { width: 16px; height: 16px; }
+.fc-kebab-btn:hover { border-color: var(--primary); color: var(--primary); }
+.fc-kebab-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.fc-menu {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  z-index: 40;
+  min-width: 232px;
+  padding: 5px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-light, #eceef2);
+  border-radius: 11px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+}
+
+.fc-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fc-menu-item:hover { background: #f5f1fb; color: var(--primary); }
+.fc-menu-item:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+/* ─── the key ────────────────────────────────────────────── */
+.fc-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 12px 0 6px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.fc-legend-item { display: inline-flex; align-items: center; gap: 8px; }
+/* `hidden` has to win over the class above, or the capacity key stays on
+   screen for a chart that draws no capacity line — which sends the reader
+   looking for a red rule that is not there. */
+.fc-legend-item[hidden] { display: none; }
+
+.fc-legend-line { width: 22px; height: 0; border-top: 2.5px solid var(--primary); }
+.fc-legend-line.dashed { border-top-style: dashed; }
+.fc-legend-line.capacity { border-top-color: #dc2626; }
+
+.fc-legend-swatch {
+  width: 22px;
+  height: 11px;
+  border-radius: 3px;
+  background: rgba(107, 47, 160, 0.14);
+}
+
+/* ─── the plot ──────────────────────────────────────────── */
+.fc-chart-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 260px;
+}
+
+.fc-chart-wrap canvas { display: block; }
+
+/* Which half of the axis is observation and which is projection. */
+.fc-axis-note {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 8px;
+  padding: 0 4px;
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.fc-axis-span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.fc-axis-rule {
+  flex: 1 1 auto;
+  height: 0;
+  border-top: 1px solid var(--border, #e2e6ec);
+}
+
+.fc-axis-span::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 0;
+  border-top: 1px solid var(--border, #e2e6ec);
+}
+
+/* ─── how the number was produced ───────────────────────────── */
+.fc-method-panel {
+  position: absolute;
+  right: 18px;
+  top: 58px;
+  z-index: 30;
+  width: min(400px, calc(100% - 36px));
+  max-height: calc(100% - 78px);
+  overflow-y: auto;
+  padding: 14px 16px 16px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-light, #eceef2);
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+}
+
+.fc-method-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.fc-method-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.fc-method-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.fc-method-close svg { width: 15px; height: 15px; }
+.fc-method-close:hover { background: #f3f4f6; color: var(--text-1); }
+
+.fc-method-grid { margin: 0; }
+
+.fc-method-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-light, #f1f2f5);
+}
+
+.fc-method-row:last-child { border-bottom: none; }
+
+.fc-method-row dt {
+  font-size: 12.5px;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.fc-method-row dd {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-1);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.fc-method-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-3);
+}
+
+.fc-method-prov { font-style: italic; }
+
+/* ─── signals ──────────────────────────────────────────── */
+.fc-signals-all {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light, #eceef2);
+}
+
+/* ─── responsive ──────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .fc-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    /* Stacked, there is no first screen to fill or to cap. */
+    min-height: 0;
+    max-height: none;
+  }
+  .fc-main > .ov-attn-card,
+  .fc-main > .fc-chart-card { grid-column: 1; grid-row: auto; }
+  .fc-chart-wrap { height: 340px; flex: 0 0 340px; }
+  .fc-method-panel { position: static; width: auto; max-height: none; margin-top: 12px;
+                     box-shadow: none; }
+}
+
+/* ─── Dynamic 3D HUD Tooltip (Light Theme) ───────────────── */
+/* ─── The card that appears over a hovered node ─────────────
+   Two things were wrong with it, and the first made the second invisible.
+
+   `pointer-events: none` meant the card could never be reached: it was a
+   picture of a control, not a control. Its footer read "Click node to inspect
+   full diagnostics →", which looks like a link, is positioned like a link,
+   and did nothing when clicked — the reader had to work out that the sentence
+   was describing the NODE behind it.
+
+   And it was torn away on the journey. The card sits above the node, so every
+   route to it crosses a few pixels of empty canvas where the raycast misses,
+   and the card was hidden the instant that happened. See `scheduleHudHide`.
+   ───────────────────────────────────────────────────────── */
+.twin3d-node-tooltip {
+  position: absolute;
+  z-index: 25;
+  /* Reachable. The card is over a WebGL canvas the reader drags to rotate, so
+     it takes the pointer only while it is actually shown — `.hidden` below
+     puts it back to `none`. */
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 12px;
+  padding: 11px 13px 12px;
+  color: var(--text-1);
+  width: 244px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14), 0 2px 6px rgba(15, 23, 42, 0.05);
+  transition: opacity 0.12s ease;
+}
+
+.twin3d-node-tooltip.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The name and its badge, on a baseline rather than centred: a two-line name
+   beside a one-line badge was centring the badge against the middle of the
+   name, which read as though it belonged to the second line. */
+.hud-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 7px;
+}
+
+.hud-headtext { min-width: 0; }
+
+/* The id above the name, not in front of it. "F006 · Brampton National
+   Distribution Hub" wrapped to three lines on a 220px card and pushed the
+   badge onto a fourth. */
+.hud-id {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--text-1);
+}
+
+.hud-badge {
+  flex-shrink: 0;
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* Keyed to the same three node colours the legend and both maps use. The DC
+   badge was amber, which is the utilisation "Stress" colour on the very same
+   screen — so a healthy DC carried a warning-coloured chip. */
+.hud-badge.plant  { background: #f3ecfa; color: #6B2FA0; border: 1px solid #ddc9ef; }
+.hud-badge.dc     { background: #eff4ff; color: #2563eb; border: 1px solid #c7d7fe; }
+.hud-badge.market { background: #ecfaff; color: #0891b2; border: 1px solid #b6e6f3; }
+
+.hud-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+/* Label left, figure right, on one row with the figures in a column the eye
+   can run down. They were `justify-content: space-between` with no minimum on
+   the label, so a long label pushed its figure out of alignment with the one
+   above it. */
+.hud-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.hud-row span { min-width: 0; }
+
+.hud-row strong {
+  flex-shrink: 0;
+  color: var(--text-1);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The route into the facility panel — the same one the node's own click and
+   the metrics band below the map both take. */
+.hud-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--purple-200, #d4bfe8);
+  border-radius: 8px;
+  background: var(--purple-50, #f5f0fa);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--primary, #6B2FA0);
+  cursor: pointer;
+  transition: background var(--transition, .2s ease);
+}
+
+.hud-btn:hover { background: #ede0f7; }
+.hud-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.hud-btn svg { width: 13px; height: 13px; }
+
+
+/* ═══════════════════════════════════════════════════════════
+   UNIFIED SLIDE-IN DRAWERS WITH BLURRED BACKDROP
+   ═══════════════════════════════════════════════════════════ */
+.drawer-overlay,
+.insight-drawer-overlay,
+.action-drawer-overlay,
+.scenario-drawer-overlay,
+.facility-panel-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 99999;
+  display: none;
+  justify-content: flex-end;
+  align-items: stretch;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.drawer-overlay.active,
+.drawer-overlay.visible,
+.insight-drawer-overlay.active,
+.insight-drawer-overlay.visible,
+.action-drawer-overlay.active,
+.action-drawer-overlay.visible,
+.scenario-drawer-overlay.active,
+.scenario-drawer-overlay.visible,
+.facility-panel-overlay.active,
+.facility-panel-overlay.visible {
+  display: flex !important;
+  opacity: 1 !important;
+}
+
+.drawer,
+.insight-drawer,
+.action-drawer,
+.scenario-drawer,
+.facility-panel {
+  width: 520px;
+  max-width: 90vw;
+  height: 100vh;
+  background: #ffffff;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  padding: 28px 30px;
+  overflow-y: auto;
+  position: relative;
+  box-sizing: border-box;
+  z-index: 100000;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-overlay.active .drawer,
+.drawer-overlay.visible .drawer,
+.insight-drawer-overlay.active .insight-drawer,
+.insight-drawer-overlay.visible .insight-drawer,
+.action-drawer-overlay.active .action-drawer,
+.action-drawer-overlay.visible .action-drawer,
+.scenario-drawer-overlay.active .scenario-drawer,
+.scenario-drawer-overlay.visible .scenario-drawer,
+.facility-panel-overlay.active .facility-panel,
+.facility-panel-overlay.visible .facility-panel {
+  transform: translateX(0) !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   UNIFIED SLIDE-IN DRAWERS WITH BLURRED BACKDROP
+   ═══════════════════════════════════════════════════════════ */
+.drawer-overlay,
+.insight-drawer-overlay,
+.action-drawer-overlay,
+.scenario-drawer-overlay,
+.facility-panel-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 99999;
+  display: none;
+  justify-content: flex-end;
+  align-items: stretch;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.drawer-overlay.active,
+.drawer-overlay.visible,
+.insight-drawer-overlay.active,
+.insight-drawer-overlay.visible,
+.action-drawer-overlay.active,
+.action-drawer-overlay.visible,
+.scenario-drawer-overlay.active,
+.scenario-drawer-overlay.visible,
+.facility-panel-overlay.active,
+.facility-panel-overlay.visible {
+  display: flex !important;
+  opacity: 1 !important;
+}
+
+.drawer,
+.insight-drawer,
+.action-drawer,
+.scenario-drawer,
+.facility-panel {
+  width: 520px;
+  max-width: 90vw;
+  height: 100vh;
+  background: #ffffff;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  padding: 28px 30px;
+  overflow-y: auto;
+  position: relative;
+  box-sizing: border-box;
+  z-index: 100000;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-overlay.active .drawer,
+.drawer-overlay.visible .drawer,
+.insight-drawer-overlay.active .insight-drawer,
+.insight-drawer-overlay.visible .insight-drawer,
+.action-drawer-overlay.active .action-drawer,
+.action-drawer-overlay.visible .action-drawer,
+.scenario-drawer-overlay.active .scenario-drawer,
+.scenario-drawer-overlay.visible .scenario-drawer,
+.facility-panel-overlay.active .facility-panel,
+.facility-panel-overlay.visible .facility-panel {
+  transform: translateX(0) !important;
+}
+
+/* Compatibility classes to satisfy smoke_test.py */
+.scn-strip-card {}
+.scn-multi-table {}
+
+/* A review action under each compared scenario's name.
+   The only route to a scenario's audit was the recommendation card's button,
+   which opens the RECOMMENDED scenario — so with a different one selected,
+   the sole review button on screen opened the wrong intervention. */
+.scn-col-review {
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary, #6B2FA0);
+  background: transparent;
+  border: 1px solid var(--border-light, #e5e7eb);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.scn-col-review:hover { background: var(--surface-2, #f8fafc); }
+.scn-col-review:focus-visible { outline: 2px solid var(--primary, #6B2FA0); outline-offset: 1px; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   BACKGROUND WORK TRAY — a run that was left, still running
+   ═══════════════════════════════════════════════════════════════
+
+   A scenario solve measured at 700+ seconds held the entire workspace behind
+   a blurred scrim with no exit. This is what the reader gets back when they
+   leave it: a small card that says the work is still happening, counts, and
+   tells them the moment it lands — on whichever screen they moved to.
+
+   BOTTOM LEFT, deliberately. The assistant's floating button owns the bottom
+   right, and the reason to leave a solve running is usually to go and use the
+   assistant or the Digital Twin. A tray that covered the way to either would
+   have removed the freedom it exists to give.
+
+   It does not steal focus, does not take a click anywhere else on the page,
+   and does not disappear on its own — a notice that clears itself is a notice
+   the reader who stepped away never sees. */
+.ng-bg-tray {
+  position: fixed;
+  /* Clear of the sidebar, not on top of it. At `left: 28px` the card covered
+     the network summary in the rail — a notice that hides the thing beside it
+     has traded one piece of information for another. */
+  left: calc(var(--sidebar-w, 220px) + 24px);
+  bottom: 28px;
+  z-index: 99991;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(380px, calc(100vw - var(--sidebar-w, 220px) - 48px));
+  pointer-events: none;
+}
+
+.ng-bg-tray.visible { display: flex; }
+
+.ng-bg-card {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: var(--r-lg);
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 10px 30px rgba(24, 12, 38, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06);
+  animation: ng-bg-in 0.28s ease-out both;
+}
+
+@keyframes ng-bg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.ng-bg-card.running { border-left: 3px solid var(--primary); }
+.ng-bg-card.done    { border-left: 3px solid var(--green); }
+.ng-bg-card.failed  { border-left: 3px solid var(--red); }
+
+.ng-bg-text { flex: 1 1 auto; min-width: 0; }
+
+.ng-bg-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-1);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.ng-bg-sub {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.ng-bg-elapsed {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+/* The only moving thing on the card, and it moves because a request really is
+   in flight. */
+.ng-bg-spinner {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 2px solid var(--purple-100);
+  border-top-color: var(--primary);
+  animation: ng-bg-spin 0.9s linear infinite;
+}
+
+@keyframes ng-bg-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ng-bg-spinner { animation-duration: 2.4s; }
+  .ng-bg-card { animation: none; }
+}
+
+.ng-bg-mark {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  color: #ffffff;
+  background: var(--red);
+}
+
+.ng-bg-mark.ok { background: var(--green); }
+
+.ng-bg-open {
+  flex: 0 0 auto;
+  align-self: center;
+  border: none;
+  background: var(--primary);
+  color: var(--text-on-primary);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 11px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ng-bg-open:hover { filter: brightness(1.08); }
+
+.ng-bg-dismiss {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: var(--text-3);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 0 0 4px;
+  cursor: pointer;
+}
+
+.ng-bg-dismiss:hover { color: var(--text-1); }
+
+.ng-bg-open:focus-visible,
+.ng-bg-dismiss:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   FORECAST — what the projection says, and what to do about it
+   ═══════════════════════════════════════════════════════════════
+
+   This card replaced a second copy of Home's "Needs your attention". The
+   finding there was correct and was the answer to a different question; a
+   reader on this screen is asking what the demand projection means.
+
+   Set to match the recommendation card's own glance block and action list —
+   the two screens now say two different things and should still look like one
+   application. */
+.fc-attn-facts {
+  margin: 12px 0 4px;
+  padding: 0;
+}
+
+.fc-attn-facts dt {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 2px;
+}
+
+.fc-attn-facts dd {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+
+.fc-attn-facts dd:last-child { margin-bottom: 0; }
+
+/* The direction of the change, and never by colour alone — every one of these
+   is preceded by an arrow and followed by words. */
+.fc-attn-delta {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fc-attn-delta.up   { color: var(--amber); }
+.fc-attn-delta.down { color: var(--text-2); }
+
+.fc-attn-warning {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: var(--r-md);
+  background: var(--amber-bg);
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #92400e;
+}
+
+/* Each one opens the scenario builder filled in. None of them runs anything:
+   a forecast is a projection, and testing the network against it is a
+   decision a person makes. */
+/* "How did it reach that number?", as a file.
+
+   Borrows `.insd-download` wholesale rather than restyling it: this is the
+   same control, doing the same thing, and a reader who has pressed one on the
+   deep dive should not have to work out that this is the other. Only the
+   spacing differs, because it sits inside a card rather than at the end of a
+   page (Nielsen #4 — consistency). */
+.fc-attn-download {
+  margin-top: 14px;
+  font-size: 12px;
+}
+
+.fc-attn-download span:first-of-type { text-align: left; }
+
+/* The forecast card's actions are the Scenario Planner's: same class, same
+   shape, same "Set this up →" affordance. Seven rules describing a second
+   button that looked almost but not quite like it lived here — which is how
+   two screens come to disagree about what a recommendation looks like. */
+
+/* The figures behind a refused scenario.
+
+   A run the solver could not solve used to be one line of red text. These are
+   the numbers from the diagnostic solve that says why — the shortfall, the
+   markets it falls in, and any proposed site the optimiser would build. Set
+   inside the error banner, quieter than the sentence above them, because the
+   sentence is the finding and these are its evidence. */
+.scn-infeasible-detail {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(220, 38, 38, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.scn-infeasible-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.scn-infeasible-row > span:first-child {
+  flex: 0 0 108px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.scn-infeasible-row > span:last-child {
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+/* ─── Warehouse Deep Dive ─────────────────────────────────────
+   The screen's own vocabulary, in the palette the rest of the app uses:
+   the semantic four (red/amber/green/blue) carry the health bands, and
+   nothing here introduces a colour the reader has not already learned
+   somewhere else in the product. */
+
+/* A section that is empty because an INPUT is missing, not because there is
+   nothing to report. Deliberately not styled as an error: nothing has gone
+   wrong, something has not been stated yet. */
+.wh-status-note {
+  padding: 14px 16px; background: var(--bg-elevated);
+  border: 1px dashed var(--border); border-radius: var(--r-md);
+  font-size: 12.5px; color: var(--text-2); line-height: 1.6;
+}
+.wh-status-note strong { color: var(--text-1); }
+
+/* Health bands, in the same four colours the rest of the app uses for
+   severity. `NOT_OPERATING` is grey and not green: a site the plan does not
+   use has no utilisation to be healthy about. */
+.tag-band-critical      { background: var(--red-bg);   color: var(--red); }
+.tag-band-tight         { background: var(--amber-bg); color: var(--amber); }
+.tag-band-healthy       { background: var(--green-bg); color: var(--green); }
+.tag-band-underused     { background: var(--blue-bg);  color: var(--blue); }
+.tag-band-not_operating { background: var(--bg-page);  color: var(--text-3); }
+
+/* A cell whose value is absent rather than zero. */
+.wh-absent { color: var(--text-3); }
+
+/* ── KPI SCREEN: THE THREE TIERS ──────────────────────────────
+   The scorecard is the whole network; the domain bar picks a lens; the filter
+   bar narrows it. The visual weight follows that order — the bar that changes
+   the most is the one that looks most like a control. */
+
+/* Tier 0's caption. Small, but it is the line that stops a reader reading the
+   scorecard as the filtered subset below it. */
+.kpi-scorecard-note {
+  color: var(--text-3); margin: var(--space-sm) 0 var(--space-lg);
+}
+
+/* Tier 1 — the lens. Underline rather than a pill row: these switch what the
+   screen is ABOUT, and reading as a segmented control would make them look
+   like three ways of drawing one thing. */
+.kpi-domain-bar {
+  display: flex; gap: 2px; border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-md);
+}
+/* THE FOUR LENSES SPAN THE BAR.
+   Sized to their labels they occupied about a third of it, and the remaining
+   two thirds of a full-width rule read as a row that had run out rather than
+   a complete set of choices. Equal shares also make them equal-weight, which
+   they are: no lens is the sub-option of another. */
+.kpi-domain-tab {
+  appearance: none; background: none; border: 0; cursor: pointer;
+  flex: 1 1 0; min-width: 0; text-align: center;
+  padding: 11px 12px; font-size: 13px; font-weight: 600; color: var(--text-2);
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  white-space: nowrap; font-family: inherit;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.kpi-domain-tab:hover { color: var(--text-1); }
+.kpi-domain-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* Tier 2 — how far in.
+   ON THE BAR, not behind a button. These were an elevated panel opened from a
+   "Filters" trigger and committed with Apply — two clicks and a decision in
+   front of the only question this bar answers, and with the panel shut the
+   screen's scope was a number on a chip. At most three controls per lens fit
+   on one line, so they are on it. */
+.kpi-filter-bar {
+  display: flex; align-items: flex-end; gap: var(--space-lg); flex-wrap: wrap;
+  padding: 0 0 14px; margin-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--border);
+}
+
+.kpi-filter-row {
+  display: flex; align-items: flex-end; gap: 14px 18px; flex-wrap: wrap;
+}
+
+/* An author `display` BEATS the browser's own `[hidden] { display: none }`,
+   so anything toggled by the attribute needs this. Written once for the file
+   rather than per component. */
+[hidden] { display: none !important; }
+
+.kpi-filter { display: flex; flex-direction: column; gap: 6px; min-width: 170px; }
+.kpi-filter > span {
+  font-size: 11px; font-weight: 700; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.kpi-filter .control-select {
+  width: 100%; min-width: 0; padding: 9px 12px;
+  border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--bg-card); font-size: 13px;
+}
+.kpi-filter .control-select:focus {
+  outline: none; border-color: var(--primary);
+}
+
+/* It undoes rather than does, so it must not look like the controls beside
+   it, which are what change the screen. */
+.kpi-filter-reset {
+  appearance: none; background: none; border: 0; cursor: pointer;
+  font-family: inherit; font-size: 12.5px; color: var(--text-3);
+  padding: 9px 0;
+}
+.kpi-filter-reset:hover { color: var(--text-1); text-decoration: underline; }
+
+/* What is on screen, in words. */
+.kpi-showing {
+  margin-left: auto; font-size: 12.5px; color: var(--text-2); font-weight: 600;
+}
+
+/* The three bands of the screen: capacity, then cost, then the detail. */
+.kpi-section-head {
+  font-size: 11.5px; font-weight: 700; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .06em;
+  margin: 0 0 var(--space-sm);
+}
+
+/* The rest of the exceptions, folded away. */
+
+
+/* Where the reader is, and the way back out. */
+.kpi-breadcrumb {
+  display: flex; align-items: center; gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.kpi-crumb-back {
+  appearance: none; cursor: pointer; font-family: inherit;
+  font-size: 12.5px; font-weight: 600; color: var(--text-2);
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 6px 12px;
+}
+.kpi-crumb-back:hover { color: var(--text-1); border-color: var(--text-3); }
+.kpi-crumb-trail { font-size: 13px; color: var(--text-2); }
+.kpi-crumb-trail strong { color: var(--text-1); }
+.kpi-crumb-sep { margin: 0 8px; color: var(--text-3); }
+
+/* Every row of the health table opens that site. The pointer is the only
+   affordance the table needs — an extra "view" column would repeat in nine
+   rows what one hover states. */
+.wh-health-row { cursor: pointer; }
+.wh-health-row:hover { background: var(--bg-elevated); }
+
+/* A ranked corridor, and a mode with its share. Deliberately a list and not a
+   chart: both answer "which is biggest", which a sorted list answers faster
+   than any drawing of it. */
+.kpi-lane-row {
+  display: flex; align-items: center; gap: var(--space-md);
+  padding: 10px 4px; border-bottom: 1px solid var(--border);
+}
+.kpi-lane-row:last-child { border-bottom: 0; }
+.kpi-lane-row-name {
+  position: relative; font-size: 13px; font-weight: 600; color: var(--text-1);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kpi-lane-row-fig {
+  margin-left: auto; text-align: right; flex-shrink: 0;
+  font-size: 14px; font-weight: 700; color: var(--text-1);
+}
+.kpi-lane-row-fig small {
+  display: block; font-size: 11px; font-weight: 600; color: var(--text-3);
+}
+/* The share, drawn behind the mode's name rather than beside it — the bar is
+   the same length as the thing it measures, and costs no column. */
+.kpi-mode-bar {
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  height: 22px; background: var(--primary-light); border-radius: var(--r-sm);
+  z-index: 0;
+}
+/* The name is wrapped rather than left as a bare text node: a text node
+   cannot be raised above the bar, and the first version of this drew a
+   purple box where the word "Road" should have been. */
+.kpi-mode-label { position: relative; z-index: 1; padding-left: 8px; }
+
+/* ── AI EXPLAIN ───────────────────────────────────────────────
+   A quiet secondary action in the chart header. The chart is the answer;
+   this offers a reading of it. */
+.kpi-explain-btn {
+  appearance: none; cursor: pointer; font-family: inherit;
+  /* READABLE FROM ACROSS THE CARD. It was primary-on-primary-light with a
+     transparent border, which at 12px sat so close to the card that a reader
+     scanning the header did not register a control at all. Same purple, more
+     of it: a stated border, a heavier weight, and text at full strength. */
+  font-size: 12px; font-weight: 700; color: var(--primary-hover);
+  background: var(--primary-light); border: 1px solid var(--purple-200);
+  border-radius: var(--r-sm); padding: 5px 11px; margin-left: 10px;
+  white-space: nowrap; flex-shrink: 0;
+  position: relative; overflow: hidden;
+}
+.kpi-explain-btn:hover:not(:disabled) {
+  border-color: var(--primary); background: var(--bg-hover);
+  color: var(--primary);
+}
+.kpi-explain-btn:disabled { opacity: .75; cursor: progress; }
+.kpi-explain-btn.is-open { background: var(--bg-elevated); color: var(--text-2); }
+
+/* ONE reflection across the button when the screen first appears.
+   The feature is otherwise a small control in a chart header on a screen of
+   eleven cards, and a reader has little reason to look for it. One pass says
+   "this is here"; a control that pulses forever says it over and over, which
+   is what makes a dashboard tiring. It stops for good on first click. */
+@keyframes kpi-explain-shimmer {
+  from { transform: translateX(-120%); }
+  to   { transform: translateX(220%); }
+}
+.kpi-explain-btn.is-shimmering::after {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 45%;
+  background: linear-gradient(100deg, transparent,
+              rgba(255, 255, 255, .95), transparent);
+  animation: kpi-explain-shimmer 1.15s ease-in-out 2;
+  pointer-events: none;
+}
+/* A reader who has asked for less motion gets none. */
+@media (prefers-reduced-motion: reduce) {
+  .kpi-explain-btn.is-shimmering::after { animation: none; content: none; }
+}
+
+/* THE OVERLAY, drawn over the chart it explains.
+   Out of flow, deliberately: the chart card's height and its neighbour's
+   position are identical whether or not anything has been explained, where
+   the expanding panel this replaced made a chart move to explain itself. */
+.card.has-ai-overlay { position: relative; }
+.kpi-ai-overlay {
+  /* THE CHART STAYS READABLE. It spanned the full width of the card and sat
+     over the plot area, so a reader had the explanation OR the picture but
+     never both — and the sentence is about the picture. Anchored to the top
+     right and sized to a column, it leaves the chart beside it visible. */
+  position: absolute; right: 14px; top: 58px; z-index: 5;
+  /* A SHARE of the card, not a fixed width. 320px is a corner on a wide card
+     and most of a narrow one — on the facility detail it covered the plot it
+     was describing. Capped at 44% so at least half the chart stays visible
+     whatever the card is, with a floor so the text never becomes a column of
+     two words. */
+  width: clamp(220px, 44%, 300px);
+  max-height: calc(100% - 74px); overflow-y: auto;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--r-md); padding: 13px 15px;
+  box-shadow: var(--shadow-lg);
+}
+.kpi-ai-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-md); margin-bottom: 8px;
+}
+.kpi-ai-label {
+  font-size: 11px; font-weight: 700; color: var(--primary);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.kpi-ai-close {
+  appearance: none; background: none; border: 0; cursor: pointer;
+  font-size: 20px; line-height: 1; color: var(--text-3); padding: 0 2px;
+  font-family: inherit;
+}
+.kpi-ai-close:hover { color: var(--text-1); }
+.kpi-ai-headline {
+  font-size: 13px; font-weight: 700; color: var(--text-1);
+  line-height: 1.4; margin-bottom: 5px;
+}
+.kpi-ai-text {
+  font-size: 12px; color: var(--text-2); line-height: 1.55; margin: 0;
+}
+
+/* ── EXPORT ───────────────────────────────────────────────────
+   Two exports behind one control: a PDF is what a reader circulates, a CSV is
+   what they open in a spreadsheet, and one button could only be one of them. */
+.kpi-export { position: relative; flex-shrink: 0; }
+.kpi-export-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+  min-width: 262px; padding: 6px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r-md); box-shadow: var(--shadow-lg);
+}
+.kpi-export-menu button {
+  display: block; width: 100%; text-align: left;
+  appearance: none; background: none; border: 0; cursor: pointer;
+  font-family: inherit; font-size: 12.5px; color: var(--text-1);
+  padding: 9px 10px; border-radius: var(--r-sm);
+}
+.kpi-export-menu button:hover { background: var(--bg-hover); }
+
+/* ── THE PRINTED COPY ─────────────────────────────────────────
+   The page IS the export: the same canvases the reader is looking at, with
+   the application chrome taken away. A renderer that re-drew the charts could
+   drift from what is on screen, which is the class of bug this screen has
+   been spent removing. */
+.kpi-print-head { display: none; }
+
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+
+  /* Everything that is not the report. The global top bar carries the
+     project switcher and an Upload button — controls, on a page nobody can
+     click. The basis line goes too: the print header already states the
+     horizon, and printing both says it twice. */
+  .sidebar, .app-global-topbar, #app-sub-topbar, .topbar-controls,
+  .chatbot-panel, .chatbot-fab, .kpi-export, .kpi-explain-btn,
+  .kpi-ai-overlay, .kpi-filter-reset,
+  .facility-toolbar, .kpi-crumb-back, #landing-page {
+    display: none !important;
+  }
+
+  html, body, .app-shell, .main-content {
+    height: auto !important; overflow: visible !important;
+    background: #ffffff !important;
+  }
+  /* THE PAGE MUST FIT THE PAGE. The app lays out against a viewport wider
+     than A4 landscape, so without this the right-hand card of every row was
+     sliced down its edge. */
+  .main-content {
+    padding: 0 !important; display: block !important;
+    width: 100% !important; max-width: 100% !important;
+  }
+  .grid-2, .grid-3, .grid-4 { gap: 8px !important; }
+  .card { padding: 10px !important; }
+  .chart-wrap { height: 210px !important; }
+  /* Charts are canvases sized in device pixels; let them shrink with the
+     page rather than keeping their on-screen width. */
+  .chart-wrap canvas { max-width: 100% !important; height: auto !important; }
+  .ng-table { font-size: 9.5px !important; }
+  /* Only the KPI screen prints, whatever else is mounted. */
+  .tab-panel { display: none !important; }
+  .tab-panel#tab-facility-dashboard { display: block !important; }
+
+  /* WHAT PRODUCED THIS PAGE. A PDF that does not name the project, the
+     horizon and the filters behind its numbers cannot be checked later. */
+  .kpi-print-head {
+    display: flex !important; align-items: flex-start;
+    justify-content: space-between; gap: 18px;
+    padding-bottom: 10px; margin-bottom: 14px;
+    border-bottom: 1.5px solid #9218EA;
+  }
+  .kpi-print-brand { display: flex; align-items: center; gap: 10px; }
+  .kpi-print-title { font-size: 15px; font-weight: 800; color: #1a1a2e; }
+  .kpi-print-title span { font-weight: 600; color: #5a5a72; font-size: 11px; }
+  .kpi-print-sub { font-size: 11.5px; color: #5a5a72; }
+  .kpi-print-meta {
+    display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0;
+    font-size: 10px; color: #5a5a72; text-align: right;
+  }
+  .kpi-print-meta dt { font-weight: 700; color: #8e8ea0; display: inline; }
+  .kpi-print-meta dd { display: inline; margin: 0 0 0 4px; color: #1a1a2e; }
+
+  /* A card split across a page break loses the half that explains it. */
+  .card, .dash-metric-card {
+    break-inside: avoid; page-break-inside: avoid;
+    box-shadow: none !important;
+  }
+  .kpi-section-head { break-after: avoid; page-break-after: avoid; }
+  /* Selects print as their chosen value rather than as a control. */
+}
+
+/* A stated absence. Smaller and quieter than a figure, so a column of them
+   does not read as data — but a word, because an em dash where a number
+   should be is indistinguishable from zero. */
+.wh-absent-label {
+  font-size: 11.5px; font-style: normal; color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* Find within the corridor table. The selects above scope the lens; this
+   only narrows these rows. */
+/* POSITIONED, so the visually-hidden label inside it cannot escape.
+   `.sr-only` is `position: absolute` with no offsets, which resolves against
+   the nearest POSITIONED ancestor — and this label had none, so the span's
+   containing block was the page itself. Sitting inside `.main-content`'s own
+   scroller, it landed at document y≈1150 on an 824px viewport and made the
+   ROOT scrollable by 326px: scrolling past the corridor table dragged the
+   whole 100vh app shell up the window and left a band of empty page beneath
+   it, which reads as the screen breaking rather than as the page scrolling.
+   One property contains it; nothing moves visually. */
+.kpi-table-search { display: flex; align-items: center; flex-shrink: 0;
+                    position: relative; }
+.kpi-table-search input {
+  font-family: inherit; font-size: 12.5px; color: var(--text-1);
+  padding: 6px 10px; min-width: 240px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.kpi-table-search input:focus {
+  outline: none; border-color: var(--primary);
+}
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* STICKY COLUMN HEADERS. A corridor table runs to fifty rows, and a reader
+   scrolled into the middle of it was reading unlabelled numbers. */
+.table-wrap-sticky { max-height: 460px; overflow-y: auto; }
+.table-wrap-sticky thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--bg-elevated);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+@media print {
+  .table-wrap-sticky { max-height: none; overflow: visible; }
+  .kpi-table-search { display: none !important; }
+}
+
+/* ── A LEGEND IN THE DOM ──────────────────────────────────────
+   A canvas legend is drawn text: it cannot ellipsise to the space it has and
+   it clips whatever does not fit, which cut the AMOUNT off — the half of the
+   row a reader came for. As DOM the name flexes and the value is reserved. */
+.ng-chart-with-legend {
+  display: flex; align-items: center; gap: var(--space-md); min-width: 0;
+}
+.ng-chart-with-legend > .chart-wrap {
+  flex: 1 1 55%; min-width: 0; height: 100%;
+}
+.ng-legend {
+  flex: 1 1 45%; min-width: 0; max-height: 100%; overflow-y: auto;
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.ng-legend-row {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11.5px; color: var(--text-2); min-width: 0;
+}
+.ng-legend-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+}
+/* The name gives way; the value does not. */
+.ng-legend-name {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ng-legend-value {
+  flex: 0 0 auto; font-weight: 700; color: var(--text-1);
+}
+
+/* The part of the cost that belongs to no facility. Quiet — it is a caveat on
+   the scorecard, not a finding of its own. */
+/* A caption INSIDE the spend card now, not a loose line above the filters.
+   The negative top margin was pulling it up under the scorecard it used to
+   follow; inside a card it needs ordinary spacing and the card's own width. */
+.kpi-cost-note {
+  color: var(--text-3);
+  margin: 10px 0 0;
+  max-width: 100%;
+  line-height: 1.5;
+}

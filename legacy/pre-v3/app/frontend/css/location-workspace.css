@@ -1,0 +1,24 @@
+#location-workspace{width:min(1480px,96vw);height:min(940px,94vh);max-width:96vw;max-height:94vh;margin:auto;padding:24px;border:1px solid #ddd8e5;border-radius:18px;color:#242333;background:#fff;box-shadow:0 24px 100px #1a123d44;overflow:auto}
+#location-workspace::backdrop{background:#1e173f88;backdrop-filter:blur(3px)}
+#location-workspace h2{font-size:1.45rem;margin:0 0 6px}#location-workspace h3{font-size:1rem;margin:20px 0 10px}#location-workspace h4{margin:14px 0 8px}
+#location-workspace p{font-size:.875rem;line-height:1.55;color:#666474;margin:8px 0 12px}
+.location-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.location-header p{margin-bottom:0}
+#loc-status{padding:12px 14px;border-radius:8px;background:#f5f1fa;color:#503576!important;min-height:44px}
+.location-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(310px,1fr);gap:24px}.location-layout[hidden]{display:none}
+#location-planning-map{height:480px;min-height:320px;border:1px solid #d8dce4;border-radius:12px;background:#cddced}
+.location-form{border-left:1px solid #e7e4ec;padding-left:24px}.location-form h3:first-child{margin-top:0}
+#location-workspace label{display:block;font-size:.875rem;line-height:1.5;margin:10px 0;color:#373444}
+#location-workspace input:not([type=checkbox]),#location-workspace select,#location-workspace textarea{display:block;width:100%;min-height:40px;border:1px solid #d9d4e0;border-radius:7px;background:#fff;color:#252332;padding:9px;font:inherit;box-sizing:border-box}
+#location-workspace input[type=checkbox]{accent-color:#7628b4;margin-right:6px}#location-workspace textarea{min-height:78px;resize:vertical}
+#location-workspace button{font:inherit;font-size:.875rem;line-height:1.4;border:1px solid #d8cbe4;border-radius:7px;padding:9px 12px;background:#fbf8ff;color:#582580;cursor:pointer;transition:background .15s}
+#location-workspace button:hover{background:#eee4f7}#location-workspace button:disabled{opacity:.5;cursor:not-allowed}
+#location-workspace :focus-visible{outline:3px solid #ae6fe2;outline-offset:2px}#location-workspace .location-primary{width:100%;color:white;background:#7628b4;border-color:#7628b4}
+.location-map-controls,.location-search-row,.location-pair{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.location-map-controls{margin-bottom:10px}.location-pair>*{flex:1;min-width:110px}.location-search-row label{max-width:160px}
+.location-pin{display:grid;place-content:center;font:bold 11px system-ui;border:2px solid #fff;border-radius:7px;background:#697689;color:white;box-shadow:0 2px 5px #0003}
+.location-origin{background:white;color:#7628b4;border-color:#7628b4;border-style:dashed}.location-draft{background:#7628b4;font-size:13px;border-radius:10px;box-shadow:0 0 0 5px #7628b422,0 4px 12px #0004}
+.location-heat-canvas{position:absolute;pointer-events:none}.location-heat-key{display:inline-block;width:80px;height:10px;border-radius:4px;background:linear-gradient(90deg,#f5bf37,#f50000);margin-right:8px}
+#location-workspace details{border:1px solid #e4ddea;border-radius:8px;padding:11px;margin:12px 0}#location-workspace summary{font-size:.875rem;font-weight:600;cursor:pointer}#location-workspace details p:last-child{margin-bottom:0}
+.location-research{border-top:1px solid #e4ddea;margin-top:18px}.location-shortlist{list-style:none;padding:0;margin:12px 0;max-height:360px;overflow:auto}.location-shortlist li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-top:1px solid #eee}.location-shortlist strong{font-size:.875rem}.location-shortlist p{margin:4px 0!important}.location-shortlist a{font-size:.875rem;color:#7628b4;text-decoration:underline}
+.location-table-scroll{overflow:auto}#location-workspace table{border-collapse:collapse;font-size:.8125rem;min-width:440px;width:100%}#location-workspace td,#location-workspace th{padding:8px;border-bottom:1px solid #e7e2ed;text-align:left}#location-workspace dt{font-size:.875rem;color:#666474}#location-workspace dd{font-weight:650;margin:2px 0 12px}
+@media(max-width:900px){.location-layout{grid-template-columns:1fr}.location-form{border-left:0;border-top:1px solid #e4ddea;padding:20px 0 0}#location-planning-map{height:380px}}
+@media(prefers-reduced-motion:reduce){#location-workspace button{transition:none}}

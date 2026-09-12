@@ -1,0 +1,443 @@
+"""
+NetGravity — Deterministic Result Contract Builders
+===================================================
+Version: 1.4.0
+
+Derives the frozen result contracts (`schemas/contracts.py`) from the engine's
+native `OptimizationResult`.
+
+Lives in `metrics/` because that is where NetGravity already derives structured
+outputs from raw optimization results (see `metrics/kpis.py`). No optimization
+or cost arithmetic happens here — cost components come from the existing
+business-cost/reconciliation layer, so there is exactly one cost model.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections import defaultdict
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from netgravity.costs.business_cost import (
+    BusinessCostError,
+    compute_business_network_cost,
+)
+from netgravity.optimization.modes import get_mode_policy
+from netgravity.schemas.contracts import (
+    CostBreakdown,
+    DemandSummary,
+    FacilitySummary,
+    FlowSummary,
+    ModelMetadata,
+    NetworkStateResult,
+    ScenarioResult,
+)
+from netgravity.schemas.network import CanonicalNetwork, NodeRole, OptimizationConfig
+from netgravity.schemas.resilience import ResilienceCostBasis
+from netgravity.schemas.results import OptimizationResult
+
+logger = logging.getLogger(__name__)
+
+MARKET_ROLES = {NodeRole.MARKET, NodeRole.CUSTOMER}
+
+
+def _build_cost_breakdown(
+    result:     OptimizationResult,
+    network:    CanonicalNetwork,
+    config:     OptimizationConfig,
+    cost_basis: Optional[ResilienceCostBasis],
+) -> CostBreakdown:
+    """
+    Assemble the cost contract, reusing the existing business-cost layer.
+
+    Business network cost and the shortage-penalty split come from
+    `costs/business_cost.py`, which in turn reuses `costs/reconciliation.py`.
+    Nothing is recomputed here.
+    """
+    comp = result.objective_components or {}
+    breakdown = CostBreakdown(
+        facility_cost   = round(comp.get("facility_cost", 0.0), 4),
+        opening_cost    = round(comp.get("opening_cost", 0.0), 4),
+        closure_cost    = round(comp.get("closure_cost", 0.0), 4),
+        transport_cost  = round(comp.get("transport_cost", 0.0), 4),
+        handling_cost   = round(comp.get("handling_cost", 0.0), 4),
+        inventory_cost  = round(comp.get("inventory_cost", 0.0), 4),
+        carbon_cost     = round(comp.get("carbon_cost", 0.0), 4),
+        shortage_penalty_cost = round(comp.get("shortage_cost", 0.0), 4),
+        solver_objective      = round(result.solver.objective_value or 0.0, 4),
+    )
+
+    if not result.is_solved:
+        breakdown.reconciliation_is_closed = False
+        return breakdown
+
+    try:
+        business = compute_business_network_cost(
+            result, network, config=config, cost_basis=cost_basis,
+        )
+    except BusinessCostError as exc:
+        logger.warning("contracts.business_cost_unavailable run_id=%s error=%s", result.run_id, exc)
+        breakdown.reconciliation_is_closed = False
+        return breakdown
+
+    breakdown.business_network_cost     = business.total
+    breakdown.shortage_penalty_cost     = business.shortage_penalty_cost
+    breakdown.included_components       = list(business.included_components)
+    breakdown.excluded_components       = list(business.excluded_components.keys())
+    breakdown.reconciliation_gap        = business.reconciliation_absolute_difference
+    breakdown.reconciliation_is_closed  = business.reconciliation_is_reconciled
+    return breakdown
+
+
+def _utilisation_by_period(fd: Any) -> Dict[str, float]:
+    """
+    Utilisation period by period, from figures the solve already published.
+
+    Not a second definition of utilisation. `FacilityDecision` carries the
+    throughput of each period, the horizon capacity and the number of periods,
+    and the engine's own `peak_utilization_pct` is the maximum of exactly this
+    series — which `test_the_series_agrees_with_the_engines_own_peak` asserts,
+    so the two cannot drift apart without a test failing.
+
+    Derived here rather than in the MILP because the MILP is a frozen file:
+    solver internals change by deliberate, separately-tested commit, and adding
+    a reporting field is not a reason to touch the mathematics.
+
+    Empty when the solve modelled one period — the series would be a single
+    entry restating `utilization_pct` — or when capacity cannot form a ratio.
+    """
+    by_period = getattr(fd, "throughput_by_period", None) or {}
+    n_periods = getattr(fd, "n_periods", 1) or 1
+    horizon_capacity = getattr(fd, "capacity_units", 0.0) or 0.0
+    if not by_period or n_periods <= 1 or horizon_capacity <= 0:
+        return {}
+    # The engine's basis: one period's throughput over THAT period's binding
+    # capacity. Monthly availability makes the denominator differ by period,
+    # so it is read per period where the solve published it, and the peak the
+    # engine reports stays the maximum of exactly this series.
+    per_period = getattr(fd, "capacity_by_period", None) or {}
+    fallback = horizon_capacity / n_periods
+    out: Dict[str, float] = {}
+    for period, units in by_period.items():
+        capacity = per_period.get(str(period), fallback)
+        if capacity and capacity > 0:
+            out[str(period)] = round(float(units) / capacity * 100.0, 2)
+    return out
+
+
+def _inventory_by_facility(
+    result: OptimizationResult,
+    periods: int,
+) -> Dict[str, Dict[str, float]]:
+    """
+    Average and peak stock held at each site, over the modelled horizon.
+
+    `InventoryDecision` is I_{i,k,t} — one row per facility, product and
+    period, and only for the (facility, period) pairs that held something. A
+    site's stock in a period is the sum over its products; its average is over
+    EVERY modelled period and its peak is the worst single one. A sum and a max
+    over rows the MILP already produced — no inventory is computed here.
+
+    Returns {} when the solve produced no inventory decisions AT ALL, which is
+    what a single-period model or a run with inventory disabled produces. The
+    caller reports that as absent rather than as zero: it is the difference
+    between "this warehouse holds no stock" and "this model does not carry
+    stock".
+
+    Where the solve DID model stock, a facility that held none is reported as
+    holding none. That is a decision the model made, not a gap in the evidence.
+    """
+    if not result.inventory_decisions:
+        return {}
+
+    span = max(1, periods)
+    by_facility_period: Dict[str, Dict[int, float]] = defaultdict(lambda: defaultdict(float))
+    for inv in result.inventory_decisions:
+        by_facility_period[inv.facility_id][inv.period] += float(inv.units)
+
+    out: Dict[str, Dict[str, float]] = {}
+    for fd in result.facility_decisions:
+        periods_held = by_facility_period.get(fd.facility_id) or {}
+        levels = list(periods_held.values())
+        out[fd.facility_id] = {
+            # Divided by the horizon, not by the number of periods that held
+            # something: the periods that held nothing held nothing.
+            "avg": round(sum(levels) / span, 4),
+            "peak": round(max(levels), 4) if levels else 0.0,
+            "periods": span,
+        }
+    return out
+
+
+def build_network_state_result(
+    result:     OptimizationResult,
+    network:    CanonicalNetwork,
+    config:     Optional[OptimizationConfig] = None,
+    cost_basis: Optional[ResilienceCostBasis] = None,
+) -> NetworkStateResult:
+    """
+    Build the frozen NetworkStateResult contract from an OptimizationResult.
+
+    Args:
+        result:     The engine's native result.
+        network:    The network that produced it (for snapshot identity and
+                    facility metadata).
+        config:     Config used for the run (defaults to network.config).
+        cost_basis: Which components constitute business cost.
+
+    Returns:
+        NetworkStateResult — flat, self-describing, safe for downstream agents.
+    """
+    if config is None:
+        config = network.config
+
+    policy = get_mode_policy(config.optimization_mode)
+    fac_map = {f.id: f for f in network.facilities}
+    kpis = result.kpis
+
+    costs = _build_cost_breakdown(result, network, config, cost_basis)
+
+    # How many periods this result actually covers. `period_report` is written
+    # by the solve itself and so is authoritative — a collapse policy reduces a
+    # twelve-period network to one modelled period, and counting the network's
+    # demand rows would then divide a one-period cost by twelve. The flow rows
+    # are the fallback for a result produced before that field existed.
+    #
+    # Computed before the facilities, because per-period throughput needs it.
+    period_report = getattr(result, "period_report", None) or {}
+    periods_modelled = period_report.get("modelled_periods")
+    if not isinstance(periods_modelled, int) or periods_modelled < 1:
+        periods_modelled = len({fl.period for fl in result.flow_decisions}) or 1
+
+    # --- Facilities ---
+    inventory = _inventory_by_facility(result, periods_modelled)
+    facilities: List[FacilitySummary] = []
+    open_ids: List[str] = []
+    closed_ids: List[str] = []
+    for fd in result.facility_decisions:
+        fac = fac_map.get(fd.facility_id)
+        charged = 0.0
+        if fac is not None and not fd.is_open:
+            closure_active = bool(config.enable_closure_cost and policy.apply_closure_cost)
+            if closure_active and fac.closure_cost_applies(is_open=False):
+                charged = fac.closure_cost
+
+        inv_row = inventory.get(fd.facility_id)
+        facilities.append(FacilitySummary(
+            facility_id          = fd.facility_id,
+            facility_name        = fd.facility_name,
+            role                 = str(fd.role),
+            is_open              = fd.is_open,
+            throughput_units     = round(fd.throughput_units, 4),
+            capacity_units       = round(fd.capacity_units, 4),
+            utilization_pct      = round(fd.utilization_pct, 4),
+            # Computed by the MILP for every multi-period solve and, until now,
+            # dropped at this boundary — so the peak month a horizon was
+            # modelled to expose could not be read by anything downstream.
+            # Falls back to the average for a single-period solve, where the two
+            # are the same number by definition.
+            peak_utilization_pct = round(
+                getattr(fd, "peak_utilization_pct", 0.0) or fd.utilization_pct, 4),
+            throughput_by_period = {
+                str(k): round(float(v), 4)
+                for k, v in (getattr(fd, "throughput_by_period", None) or {}).items()
+            },
+            utilization_by_period = _utilisation_by_period(fd),
+            throughput_units_per_period = round(
+                fd.throughput_units / periods_modelled, 4),
+            rated_capacity_units      = round(
+                getattr(fd, "rated_capacity_units", 0.0) or fd.capacity_units, 4),
+            available_capacity_units  = getattr(fd, "available_capacity_units", None),
+            production_capacity_units = getattr(fd, "production_capacity_units", None),
+            capacity_limit            = getattr(fd, "capacity_limit", None) or "HANDLING",
+            capacity_by_period        = dict(getattr(fd, "capacity_by_period", None) or {}),
+            observed_utilization_pct  = (getattr(fac, "observed_utilization_pct", None)
+                                         if fac is not None else None),
+            # The engine's own cost attribution for this site, unchanged. The
+            # total is the engine's sum rather than one made here, so a screen
+            # adding the parts up and a screen reading the total cannot
+            # disagree.
+            fixed_cost           = round(fd.fixed_cost, 4),
+            handling_cost        = round(fd.handling_cost, 4),
+            holding_cost         = round(fd.holding_cost, 4),
+            opening_cost         = round(fd.opening_cost, 4),
+            total_facility_cost  = round(fd.total_facility_cost, 4),
+            avg_inventory_units  = inv_row.get("avg") if inv_row else None,
+            peak_inventory_units = inv_row.get("peak") if inv_row else None,
+            inventory_periods    = int(inv_row.get("periods", 0)) if inv_row else 0,
+            region               = getattr(fac, "region", None) if fac else None,
+            country              = getattr(fac, "country", None) if fac else None,
+            baseline_status      = fac.effective_baseline_status.value if fac else None,
+            contract_status      = fac.contract_status.value if fac else "NONE",
+            closure_cost_charged = round(charged, 4),
+        ))
+        (open_ids if fd.is_open else closed_ids).append(fd.facility_id)
+
+    # Markets get no facility decision, so their geography is read from the
+    # network rather than from the result.
+    market_regions = {
+        f.id: f.region for f in network.facilities
+        if f.role in MARKET_ROLES and getattr(f, "region", None)
+    }
+
+    # --- Flows, aggregated across mode and product ---
+    agg: Dict[tuple, Dict[str, float]] = defaultdict(
+        lambda: {"flow": 0.0, "cost": 0.0, "carbon": 0.0, "distance": 0.0}
+    )
+    for fl in result.flow_decisions:
+        if fl.flow_units <= 1e-6:
+            continue
+        entry = agg[(fl.origin_id, fl.destination_id)]
+        entry["flow"]     += fl.flow_units
+        entry["cost"]     += fl.transport_cost
+        entry["carbon"]   += fl.carbon_kg
+        entry["distance"] = fl.distance_km
+
+    flows = [
+        FlowSummary(
+            origin_id      = o,
+            destination_id = d,
+            flow_units     = round(v["flow"], 4),
+            flow_units_per_period = round(v["flow"] / periods_modelled, 4),
+            transport_cost = round(v["cost"], 4),
+            distance_km    = round(v["distance"], 4),
+            carbon_kg      = round(v["carbon"], 6),
+        )
+        for (o, d), v in sorted(agg.items())
+    ]
+
+    demand = DemandSummary(
+        total_demand     = round(kpis.total_demand, 4) if kpis else 0.0,
+        served_demand    = round(kpis.total_served, 4) if kpis else 0.0,
+        unserved_demand  = round(kpis.unmet_demand, 4) if kpis else 0.0,
+        demand_fill_rate = round(kpis.demand_fill_rate, 6) if kpis else 0.0,
+    )
+
+    analytics = result.flow_analytics
+    metadata = ModelMetadata(
+        run_id           = result.run_id,
+        model_version    = config.model_version,
+        solver_name      = result.solver.solver_name,
+        solver_status    = result.solver.status,
+        optimality_label = result.solver.optimality_label or result.solver.get_optimality_label(),
+        mip_gap          = result.solver.mip_gap,
+        runtime_seconds  = result.solver.runtime_seconds,
+        n_variables      = result.solver.n_variables,
+        n_constraints    = result.solver.n_constraints,
+        generated_at     = result.solver.timestamp or datetime.now().isoformat(),
+        warnings         = list(result.solver.warnings),
+    )
+
+    # Only the periods actually modelled are named. A collapsed solve carries
+    # one period that corresponds to no single month, and labelling it with the
+    # first month of the horizon would claim it describes that month.
+    labels = dict(getattr(network, "period_labels", None) or {})
+    if len(labels) != periods_modelled:
+        labels = {}
+
+    return NetworkStateResult(
+        network_id        = result.network_id,
+        data_version      = result.data_version,
+        optimization_mode = result.optimization_mode,
+        mode_description  = policy.description,
+        is_hypothetical   = result.is_hypothetical,
+        result_type       = result.result_type,
+        solver_status     = result.solver.status,
+        is_feasible       = result.is_solved,
+        costs             = costs,
+        demand            = demand,
+        service           = result.service_report,
+        open_facilities   = sorted(open_ids),
+        closed_facilities = sorted(closed_ids),
+        facilities        = facilities,
+        flows             = flows,
+        market_regions    = market_regions,
+        periods_modelled  = periods_modelled,
+        period_labels     = labels,
+        # Carried from the network, not assumed. Every money figure above is
+        # denominated in this.
+        currency          = getattr(network, "currency", None),
+        cost_per_period   = round(costs.business_network_cost / periods_modelled, 4),
+        avg_utilization_pct = round(kpis.avg_utilization_pct, 4) if kpis else 0.0,
+        max_utilization_pct = round(kpis.max_utilization_pct, 4) if kpis else 0.0,
+        overutilized_facilities  = list(analytics.overutilized_facilities) if analytics else [],
+        underutilized_facilities = list(analytics.underutilized_facilities) if analytics else [],
+        total_carbon_kg   = round(kpis.total_carbon_kg, 6) if kpis else 0.0,
+        # Phase 10.0 (GAP-01): these five were computed by `compute_kpis()` and
+        # then dropped here, so they never reached any consumer. Copied across
+        # verbatim; None when there is no KPI object, never a fabricated 0.
+        weighted_avg_distance_km = kpis.weighted_avg_distance_km if kpis else None,
+        inbound_avg_distance_km  = kpis.inbound_avg_distance_km if kpis else None,
+        outbound_avg_distance_km = kpis.outbound_avg_distance_km if kpis else None,
+        min_utilization_pct      = kpis.min_utilization_pct if kpis else None,
+        carbon_per_unit          = kpis.carbon_per_unit if kpis else None,
+        metadata          = metadata,
+    )
+
+
+def build_scenario_result(
+    result:            OptimizationResult,
+    network:           CanonicalNetwork,
+    scenario_id:       str,
+    scenario_name:     str = "",
+    scenario_type:     str = "CUSTOM",
+    baseline_state:    Optional[NetworkStateResult] = None,
+    scenario_overrides: Optional[List[str]] = None,
+    config:            Optional[OptimizationConfig] = None,
+    cost_basis:        Optional[ResilienceCostBasis] = None,
+) -> ScenarioResult:
+    """
+    Build the frozen ScenarioResult contract.
+
+    `baseline_state` is used ONLY to compute deltas and to record the baseline's
+    snapshot identity. It is never modified — observed baseline state stays
+    single-sourced.
+
+    Args:
+        result:             Scenario optimization result.
+        network:            The SCENARIO network (post-override).
+        scenario_id/name/type: Scenario identity.
+        baseline_state:     Optional baseline contract for delta computation.
+        scenario_overrides: Human-readable list of what the scenario changed.
+        config:             Config used for the run.
+        cost_basis:         Which components constitute business cost.
+
+    Returns:
+        ScenarioResult, always flagged hypothetical.
+    """
+    state = build_network_state_result(result, network, config=config, cost_basis=cost_basis)
+
+    overrides = list(scenario_overrides) if scenario_overrides else []
+    manifest: Dict[str, Any] = dict(result.scenario_audit_metadata or {})
+
+    sr = ScenarioResult(
+        scenario_id        = scenario_id,
+        scenario_name      = scenario_name or scenario_id,
+        scenario_type      = scenario_type,
+        is_hypothetical    = True,
+        state              = state,
+        scenario_overrides = overrides,
+        change_manifest    = manifest,
+    )
+
+    if baseline_state is not None:
+        sr.baseline_network_id    = baseline_state.network_id
+        sr.baseline_data_version  = baseline_state.data_version
+        base_cost = baseline_state.costs.business_network_cost
+        sr.baseline_business_cost = base_cost
+
+        if result.is_solved:
+            delta = round(state.costs.business_network_cost - base_cost, 4)
+            sr.business_cost_delta = delta
+            sr.business_cost_delta_pct = (
+                round(delta / base_cost * 100.0, 6) if base_cost > 0 else None
+            )
+            sr.served_demand_delta = round(
+                state.demand.served_demand - baseline_state.demand.served_demand, 4
+            )
+            sr.carbon_delta_kg = round(
+                state.total_carbon_kg - baseline_state.total_carbon_kg, 6
+            )
+
+    return sr

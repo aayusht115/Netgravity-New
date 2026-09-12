@@ -1,0 +1,179 @@
+/* ═══════════════════════════════════════════════════════════
+   Netgravity — Sidebar Chrome
+   (Filename is legacy. The Insights page this file once styled is
+   long gone; what's left here is the sidebar brand lockup, the
+   collapse toggle and the bottom profile block. The Insights page
+   that exists TODAY — Baseline > Insights — is styled in
+   home-overview.css under `.insp-*`, beside the Overview tiles it
+   shares its vocabulary with, and one finding's full account is
+   insight-detail.css/js.)
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Sidebar Collapse Toggle ──────────────────────────────
+   Default state is collapsed (icon rail only), matching
+   Dump/Home Overview-updated.png. Expanding restores the full
+   labelled sidebar below. Persisted via localStorage so the
+   choice survives a reload. */
+.sidebar {
+  transition: width 0.18s ease;
+}
+
+.sidebar-toggle-row {
+  display: flex;
+  align-items: center;
+  padding: 16px 14px 4px;
+}
+
+.sidebar.collapsed .sidebar-toggle-row {
+  justify-content: center;
+  padding: 16px 0 4px;
+}
+
+.sidebar-toggle-btn {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  color: #4b5563;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-toggle-btn:hover {
+  background: rgba(146, 24, 234, 0.08);
+  color: #9218EA;
+}
+
+.sidebar-toggle-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar.collapsed {
+  width: 76px;
+}
+
+.sidebar.collapsed .sidebar-brand-netgravity {
+  justify-content: center;
+  padding: 8px 0 16px;
+  gap: 0;
+}
+
+.sidebar.collapsed .sidebar-brand-text,
+.sidebar.collapsed .nav-item span,
+.sidebar.collapsed .sidebar-meta,
+.sidebar.collapsed #nav-item-settings span {
+  display: none;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 11px 0;
+  margin: 2px 12px;
+}
+
+.sidebar.collapsed .nav-svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Collapsed-state tooltip: the nav item's own title attribute already
+   gives a native browser tooltip, which is sufficient here without
+   adding a second custom tooltip implementation. */
+
+/* ─── Top Brand Lockup in Sidebar ────────────────────────── */
+.sidebar-brand-netgravity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 20px 20px;
+  cursor: pointer;
+  transition: padding 0.18s ease;
+}
+
+.sidebar-logo-mark {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-brand-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+.sidebar-brand-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  letter-spacing: -0.01em;
+  margin-top: 1px;
+}
+
+/* Home's expandable submenu (Overview / Insights / Recommendations) was
+   removed — the sidebar is now flat (Home, KPIs, Digital Twin, Forecast,
+   Scenario Planning), matching Dump/Home Overview-updated.png. Insights
+   now live in a full-page deep dive instead of a nested page. */
+
+/* ─── Sidebar Bottom User Profile ─────────────────────────── */
+.sidebar-bottom-profile {
+  margin-top: auto;
+  padding: 16px 14px;
+  border-top: 1px solid #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-avatar-ak {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #9218EA;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.02em;
+}
+
+.user-name-role {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.user-role {
+  font-size: 11px;
+  color: #6b7280;
+}

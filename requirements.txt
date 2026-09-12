@@ -1,0 +1,47 @@
+# NetGravity — Mathematical Optimization Core & Web Platform Dependencies
+# =========================================================================
+
+# MILP Solver & Mathematical Optimization Engine
+pulp>=2.8.0,<3.0.0
+pydantic>=2.0.0
+highspy>=1.5.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Testing & Mathematical Verification Suite
+pytest>=8.0.0
+reportlab>=4.0,<5       # v3 PDF-ingestion regression fixtures
+
+# Web Application & Agent API Server
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Azure deployment runtime and durable JSON/blob storage.
+azure-storage-blob>=12.23.0
+azure-identity>=1.19.0
+gunicorn>=23.0.0
+
+# Orchestrator LLM gateway client (text-generation gateway over HTTPS)
+requests>=2.31.0
+python-docx>=1.1.2,<2.0.0
+
+# Extraction / Parsing Agent — client-data ingestion (netgravity/ingestion)
+pandas>=2.0.0            # tabular validation
+openpyxl>=3.1.0          # client Excel workbooks
+pypdf>=4.0.0             # contract / rate-card PDFs
+pyyaml>=6.0              # external-signal guardrail policy
+python-dotenv>=1.0.0     # local .env loading
+
+# LLM providers for ingestion — OPTIONAL.
+# The ingestion pipeline runs in STUB MODE with no API key, so these are not
+# required for development, tests or a demo, and the suite makes zero live
+# calls. Install and set NETGRAVITY_LLM_API_KEY only to enable live extraction.
+openai>=1.40.0
+anthropic>=0.40.0
+
+# Executive Reasoning Agent — OPTIONAL structured, read-only agent runtime.
+# Only imported on the explicitly enabled live path
+# (NETGRAVITY_REASONING_RUNTIME=agents + OPENAI_API_KEY). Without it the
+# reasoning agent uses its deterministic template path, which is what the test
+# suite exercises, so this is not needed for development, tests or a demo.
+openai-agents>=0.2.0
