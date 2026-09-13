@@ -58,13 +58,43 @@ from typing import Optional
 from netgravity.ingestion.config import _env, _flag  # noqa: F401 (loads .env as a side effect)
 
 
+def _env_any(*names: str, default: str = "") -> str:
+    """
+    The first of these variables that is set, so ONE mailbox configures every
+    sender in this application.
+
+    `app/backend/services/notifications.py` sends password-reset mail and had
+    independently named the same settings — _USER vs _USERNAME, _FROM vs
+    _FROM_ADDRESS, _STARTTLS vs _USE_TLS. Only those spellings appeared in
+    `.env.example`, so an operator following it configured reset mail and left
+    THIS sender stubbed. It reports sent=True when stubbed, so nothing looked
+    wrong. Both spellings are accepted on both sides; nobody has to know which
+    subsystem owns which name.
+    """
+    for name in names:
+        value = _env(name)
+        if value:
+            return value
+    return default
+
+
+def _flag_any(*names: str, default: bool = True) -> bool:
+    """`_env_any` for a boolean setting."""
+    for name in names:
+        if _env(name):
+            return _flag(name, default)
+    return default
+
+
 @dataclass
 class ActionAgentConfig:
     smtp_host: Optional[str] = field(default_factory=lambda: _env("NETGRAVITY_SMTP_HOST"))
     smtp_port: int = field(default_factory=lambda: int(_env("NETGRAVITY_SMTP_PORT", "587") or 587))
-    smtp_username: Optional[str] = field(default_factory=lambda: _env("NETGRAVITY_SMTP_USERNAME"))
+    smtp_username: Optional[str] = field(default_factory=lambda: _env_any(
+        "NETGRAVITY_SMTP_USERNAME", "NETGRAVITY_SMTP_USER") or None)
     smtp_password: Optional[str] = field(default_factory=lambda: _env("NETGRAVITY_SMTP_PASSWORD"))
-    smtp_use_tls: bool = field(default_factory=lambda: _flag("NETGRAVITY_SMTP_USE_TLS", True))
+    smtp_use_tls: bool = field(default_factory=lambda: _flag_any(
+        "NETGRAVITY_SMTP_USE_TLS", "NETGRAVITY_SMTP_STARTTLS", default=True))
     #: Seconds to wait on the SMTP conversation. A hosted provider under load,
     #: or a relay behind a firewall that black-holes rather than refuses, will
     #: otherwise hold a request thread for the operating system's own TCP
@@ -72,7 +102,8 @@ class ActionAgentConfig:
     smtp_timeout_seconds: int = field(
         default_factory=lambda: int(_env("NETGRAVITY_SMTP_TIMEOUT_SECONDS", "20") or 20))
     smtp_from_address: Optional[str] = field(
-        default_factory=lambda: _env("NETGRAVITY_SMTP_FROM_ADDRESS"))
+        default_factory=lambda: _env_any(
+            "NETGRAVITY_SMTP_FROM_ADDRESS", "NETGRAVITY_SMTP_FROM") or None)
     email_api_key: Optional[str] = field(default_factory=lambda: _env("NETGRAVITY_EMAIL_API_KEY"))
     email_strict: bool = field(default_factory=lambda: _flag("NETGRAVITY_EMAIL_STRICT"))
     inbound_email_domain: Optional[str] = field(

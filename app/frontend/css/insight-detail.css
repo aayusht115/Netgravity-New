@@ -1540,3 +1540,87 @@
   font-weight: 800;
   letter-spacing: .05em;
 }
+
+/* ─── Request card: an ACTION head, not a chart head ───────────────────
+   This card is a task the reader can complete, not a finding they read. It
+   takes the icon-plus-title shape every other action on the product uses, so
+   arriving from "Ask for data" lands on something recognisable. */
+
+.insd-request-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.insd-request-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--insd-accent-soft, #f1ecfb);
+  color: var(--insd-accent, #6b3fd4);
+}
+
+.insd-request-icon svg { width: 16px; height: 16px; }
+
+.insd-request-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--insd-text-1, #14161a);
+  line-height: 1.3;
+}
+
+/* What is missing, in one line, so the form is never the first thing read. */
+.insd-request-sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--insd-text-3, #5d6470);
+  overflow-wrap: anywhere;
+}
+
+/* While the draft reveals. Presentation only — the text is already in the
+   field's value before the first character is shown. */
+.insd-textarea.is-revealing {
+  caret-color: var(--insd-accent, #6b3fd4);
+  background-image: linear-gradient(
+    to bottom, rgba(107, 63, 212, 0.035), transparent 40%);
+}
+
+.insd-skip-reveal {
+  margin-left: 6px;
+  font-size: 12px;
+  vertical-align: baseline;
+}
+
+/* Honour the reader's own setting. The reveal is skipped in JS as well; this
+   is the belt to that braces, so a partially-applied animation cannot linger. */
+@media (prefers-reduced-motion: reduce) {
+  .insd-textarea.is-revealing {
+    background-image: none;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Severity, at the head of the subtitle.
+   Every missing-data screen now shares one heading, so this is the only thing
+   separating "the analysis cannot run without this" from "nice to have". */
+.insd-subtitle-severity {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+.insd-subtitle-severity.tone-risk { background: #fbe3e3; color: #a32020; }
+.insd-subtitle-severity.tone-info { background: #eef1f6; color: #5d6470; }

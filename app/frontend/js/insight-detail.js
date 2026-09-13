@@ -1342,6 +1342,8 @@ const insdAction = {
   /** Result of the last send on this page, shown until it is left. */
   outcome: null,
   sending: false,
+  /** Action ids whose draft has already been revealed, so it plays once. */
+  revealed: new Set(),
 };
 
 function findAction(id) {
@@ -1414,7 +1416,13 @@ function recipientsHtml() {
       <p class="insd-action-note">No addresses are saved yet. Add the person who
         owns this data below — they will be offered next time.</p>`;
   }
+  const none = !NOTIFICATION_RECIPIENTS.some(
+    (r) => insdAction.selected.has(r.email.toLowerCase()));
   return `
+    ${none && NOTIFICATION_RECIPIENTS.length > 1 ? `
+      <p class="insd-action-note insd-note-tight">Several addresses are saved.
+        Choose who this request goes to — none is ticked by default, so it
+        cannot be sent to everyone by accident.</p>` : ''}
     <div class="insd-recipients">
       ${NOTIFICATION_RECIPIENTS.map((r) => {
         const on = insdAction.selected.has(r.email.toLowerCase());
@@ -1537,8 +1545,20 @@ function requestPanelHtml(item) {
   const draft = item.draft || { subject: '', body: '' };
   return `
     <div class="insd-card insd-request">
-      <div class="insd-chart-head">
-        <div class="insd-chart-title">Request this data</div>
+      <!-- An ACTION head, not a chart head. This card is a task the reader can
+           complete, not a finding they read: it takes the icon, the imperative
+           title and the one-line statement of what is missing that every other
+           action on this product carries, so arriving here from "Ask for data"
+           lands on something recognisable rather than on a bare form. -->
+      <div class="insd-request-head">
+        <span class="insd-request-icon">${ICON.mail}</span>
+        <div>
+          <div class="insd-request-title">Request missing data</div>
+          <div class="insd-request-sub">${item.severity === 'REQUIRED'
+            ? 'The analysis needs this field. Ask whoever owns the data for it.'
+            : 'The analysis completes without this field. Ask for it only if the '
+              + 'extra accuracy is worth someone\u2019s time.'}</div>
+        </div>
       </div>
 
       <label class="insd-field-label" for="insd-subject">Subject</label>
@@ -1561,7 +1581,10 @@ function requestPanelHtml(item) {
                 spellcheck="false">${insdEsc(draft.body)}</textarea>
       <p class="insd-action-note insd-note-tight">Written from the gap itself —
         the field name and the sites it is missing from. Edit anything before
-        sending.</p>
+        sending.
+        <button type="button" class="insd-action-link insd-skip-reveal"
+                id="insd-skip-reveal" hidden>Show full draft</button>
+      </p>
 
       ${deliveryNoteHtml()}
       ${outcomeHtml()}
@@ -1583,12 +1606,23 @@ function renderActionDetail() {
     <div class="insd-page">
       <button type="button" class="insd-back-link" id="insd-back-btn">${ICON.arrowLeft}<span>${insdOrigin.label}</span></button>
 
+      <!-- The severity is the HEADING, and the field is what it is about.
+           Every missing-data screen therefore opens the same way — one of two
+           titles — instead of each one being headed by a different sentence
+           with the same badge pinned beside it. The badge is gone rather than
+           moved: repeating the heading two inches to its right said nothing
+           the heading had not just said. -->
       <div class="insd-header-row">
-        <h1 class="insd-title">${insdEsc(item.title)}</h1>
-        <span class="insd-badge tone-${required ? 'risk' : 'info'}">
-          ${required ? 'DATA NEEDED' : 'OPTIONAL DATA'}</span>
+        <h1 class="insd-title">Missing data</h1>
       </div>
-      <p class="insd-subtitle">Action \u00b7 found by the data completeness check on your upload</p>
+      <!-- The severity leads the subtitle because the heading no longer
+           carries it. With one title for every one of these screens and the
+           badge gone, this line is the only place left that separates "the
+           analysis cannot run without this" from "nice to have" — and that is
+           the first thing the reader needs in order to know whether to act. -->
+      <p class="insd-subtitle">
+        <span class="insd-subtitle-severity tone-${required ? 'risk' : 'info'}">${
+          required ? 'Required' : 'Optional'}</span>${insdEsc(item.title)}</p>
 
       <div class="insd-main-split">
         <div>
@@ -1620,12 +1654,78 @@ function renderActionDetail() {
         ${requestPanelHtml(item)}
       </div>
 
-      <p class="insd-footer-note">Source: the deterministic data-completeness
-        check over the columns your upload carried. No model was called to
-        produce this item, and no figure on this page was estimated.</p>
     </div>`;
 
   bindActionDetail();
+  revealDraft(item);
+}
+
+/**
+ * Reveal the draft as if it were being typed.
+ *
+ * PRESENTATION, NOT GENERATION. The message is already written — by
+ * `_draft_email` on the server, from the gap itself — and it is already in the
+ * textarea's value before a single character is shown. Nothing is being
+ * composed while this runs and no model is called. The animation exists because
+ * arriving from "Ask for data" onto a box that is simply already full gives the
+ * reader no sense that the draft was prepared FOR the gap they just clicked.
+ *
+ * What it must never do is get in the way:
+ *   * `prefers-reduced-motion` skips it entirely (W3C WCAG 2.1, animation from
+ *     interactions) — the full draft is there immediately;
+ *   * typing, clicking into the box, or pressing "Show full draft" ends it and
+ *     leaves the whole text;
+ *   * it plays ONCE per action, never on a revisit and never over a request
+ *     that has already been sent.
+ */
+function revealDraft(item) {
+  const box = document.getElementById('insd-message');
+  const skip = document.getElementById('insd-skip-reveal');
+  if (!box) return;
+
+  const full = box.value;
+  const alreadyPlayed = insdAction.revealed.has(item.id);
+  const sent = Boolean(insdAction.outcome);
+  const reducedMotion = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (alreadyPlayed || sent || reducedMotion || full.length < 40) {
+    skip?.setAttribute('hidden', '');
+    return;
+  }
+
+  insdAction.revealed.add(item.id);
+  box.value = '';
+  box.classList.add('is-revealing');
+  skip?.removeAttribute('hidden');
+
+  const DURATION = 1200;      // brief on purpose: this is a flourish, not a wait
+  const started = performance.now();
+  let frame = 0;
+
+  const finish = () => {
+    cancelAnimationFrame(frame);
+    box.value = full;
+    box.classList.remove('is-revealing');
+    skip?.setAttribute('hidden', '');
+    box.removeEventListener('input', finish);
+    box.removeEventListener('focus', finish);
+    skip?.removeEventListener('click', finish);
+  };
+
+  // Any sign the reader wants the text now wins over the animation.
+  box.addEventListener('input', finish);
+  box.addEventListener('focus', finish);
+  skip?.addEventListener('click', finish);
+
+  const step = (now) => {
+    const progress = Math.min((now - started) / DURATION, 1);
+    box.value = full.slice(0, Math.ceil(full.length * progress));
+    box.scrollTop = box.scrollHeight;
+    if (progress < 1) frame = requestAnimationFrame(step);
+    else finish();
+  };
+  frame = requestAnimationFrame(step);
 }
 
 function bindActionDetail() {
@@ -1787,11 +1887,21 @@ export function showInsightDetail(kind, id) {
     insdAction.item = action;
     insdAction.outcome = null;
     insdAction.sending = false;
-    // Everyone on the standing list is ticked to begin with: that list is
-    // "who generally wants to see this kind of thing", so the default is the
-    // list, and un-ticking is the exception rather than the ritual.
+    // Ticked to begin with ONLY when there is no ambiguity about who this
+    // goes to.
+    //
+    // This used to tick every saved address, on the reasoning that the list is
+    // "who generally wants to see this kind of thing". That holds for a list of
+    // one and stops holding the moment there are several: pressing Send would
+    // mail a client's data gap to everyone ever saved, and un-ticking the wrong
+    // people is a worse ritual than ticking the right one. A single saved
+    // address is unambiguous and stays ticked; beyond that the sender chooses.
     insdAction.selected = new Set(
-      NOTIFICATION_RECIPIENTS.map((r) => r.email.toLowerCase()));
+      NOTIFICATION_RECIPIENTS.length === 1
+        ? [NOTIFICATION_RECIPIENTS[0].email.toLowerCase()]
+        : NOTIFICATION_RECIPIENTS
+            .filter((r) => r.is_default)
+            .map((r) => r.email.toLowerCase()));
   } else {
     insdFlow.record = hit.record;
     insdFlow.facilityId = hit.facilityId;

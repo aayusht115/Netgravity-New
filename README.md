@@ -483,6 +483,49 @@ export NETGRAVITY_DISABLE_LLM=1         # force offline
 
 Credentials are read from the environment only. They are never placed in prompts, URLs, source or logs, and never recorded in the audit trail. The gateway is called from backend code only.
 
+### Outbound email (missing-data requests, password reset)
+
+Two independent senders share one mailbox:
+
+  * **Missing-data requests** (`netgravity/action_agent/`) — the "Request this
+    data" action on a data-completeness gap.
+  * **Password reset** (`app/backend/services/notifications.py`).
+
+Without SMTP credentials both run in **stub mode**: a send is logged
+(`[EMAIL STUB] would have emailed ...`) and reported as successful, but nothing
+leaves the machine. This is the default and is safe to leave as-is for local
+development and the test suite.
+
+To send real email, set in `.env`:
+
+```bash
+NETGRAVITY_SMTP_HOST=smtp.gmail.com
+NETGRAVITY_SMTP_PORT=587
+NETGRAVITY_SMTP_USERNAME=you@yourcompany.com
+NETGRAVITY_SMTP_PASSWORD=                 # an APP password, not your login
+NETGRAVITY_SMTP_FROM_ADDRESS=you@yourcompany.com
+NETGRAVITY_SMTP_USE_TLS=1
+NETGRAVITY_APP_BASE_URL=http://localhost:5050   # so links in the email resolve
+NETGRAVITY_EMAIL_STRICT=1                 # a failed live send raises, never silently stubs
+```
+
+**Gmail:** turn on 2-Step Verification, then create an App Password at
+https://myaccount.google.com/apppasswords — Google rejects ordinary account
+passwords over SMTP. Prefer a dedicated mailbox over a personal one; the From
+address is visible to every recipient, and Gmail may rewrite a From that isn't
+the authenticated account or one of its verified aliases.
+
+Older configuration names (`NETGRAVITY_SMTP_USER`, `NETGRAVITY_SMTP_FROM`,
+`NETGRAVITY_SMTP_STARTTLS`) are still accepted as aliases, so an existing
+`.env` keeps working.
+
+Verify the setup without guessing:
+
+```bash
+python scripts/verify_email.py                      # reports what would happen, sends nothing
+python scripts/verify_email.py --live you@company.com  # sends one real test message
+```
+
 ---
 
 ## 11. Attribution

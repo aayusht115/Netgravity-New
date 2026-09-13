@@ -37,6 +37,28 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+
+def _first_env(*names: str, default: str = "") -> str:
+    """
+    The first of these environment variables that is set to something.
+
+    ONE mailbox configures BOTH senders. This module and
+    `netgravity/action_agent/email_sender.py` are separate implementations that
+    had independently named the same settings — _FROM vs _FROM_ADDRESS, _USER
+    vs _USERNAME, _STARTTLS vs _USE_TLS. Only this module's spellings were in
+    `.env.example`, so an operator following it got password-reset mail working
+    and left the missing-data emails stubbed. That sender reports sent=True when
+    stubbed, so nothing looked wrong.
+
+    Accepting both spellings means nobody has to know which subsystem owns
+    which name.
+    """
+    for name in names:
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            return value
+    return default
+
 _DEFAULT_CHANNEL = "log"
 
 
@@ -156,7 +178,21 @@ class PasswordResetDelivery:
             logger.error("notifications.reset.smtp_unconfigured")
             return False
         port = int(os.environ.get("NETGRAVITY_SMTP_PORT", "587"))
-        sender = (os.environ.get("NETGRAVITY_SMTP_FROM")
+        # ONE mailbox configures BOTH senders.
+        #
+        # This module and `netgravity/action_agent/email_sender.py` are separate
+        # implementations that had independently named the same settings:
+        # _FROM vs _FROM_ADDRESS, _USER vs _USERNAME, _STARTTLS vs _USE_TLS.
+        # Only these names were documented in `.env.example`, so someone
+        # following it got password-reset mail working and left the
+        # missing-data emails silently stubbed — and that sender returns
+        # sent=True when stubbed, so nothing looked wrong.
+        #
+        # Both spellings are accepted here, this module's own first. Nobody has
+        # to know which subsystem owns which name.
+        sender = (_first_env("NETGRAVITY_SMTP_FROM",
+                             "NETGRAVITY_SMTP_FROM_ADDRESS",
+                             "NETGRAVITY_SMTP_USERNAME", "NETGRAVITY_SMTP_USER")
                   or "no-reply@netgravity.local")
 
         message = EmailMessage()
@@ -173,10 +209,13 @@ class PasswordResetDelivery:
 
         with smtplib.SMTP(host, port, timeout=15) as smtp:
             smtp.ehlo()
-            if os.environ.get("NETGRAVITY_SMTP_STARTTLS", "1") == "1":
+            if _first_env("NETGRAVITY_SMTP_STARTTLS",
+                          "NETGRAVITY_SMTP_USE_TLS", default="1") not in (
+                    "0", "false", "no", "off"):
                 smtp.starttls()
                 smtp.ehlo()
-            username = os.environ.get("NETGRAVITY_SMTP_USER")
+            username = _first_env("NETGRAVITY_SMTP_USER",
+                                  "NETGRAVITY_SMTP_USERNAME")
             password = os.environ.get("NETGRAVITY_SMTP_PASSWORD")
             if username and password:
                 smtp.login(username, password)
