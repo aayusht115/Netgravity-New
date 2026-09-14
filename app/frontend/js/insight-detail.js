@@ -1344,6 +1344,8 @@ const insdAction = {
   sending: false,
   /** Action ids whose draft has already been revealed, so it plays once. */
   revealed: new Set(),
+  /** Complete a pending reveal before sending or replacing its textarea. */
+  finishReveal: null,
 };
 
 function findAction(id) {
@@ -1679,13 +1681,14 @@ function renderActionDetail() {
  *     that has already been sent.
  */
 function revealDraft(item) {
+  insdAction.finishReveal?.();
   const box = document.getElementById('insd-message');
   const skip = document.getElementById('insd-skip-reveal');
   if (!box) return;
 
   const full = box.value;
   const alreadyPlayed = insdAction.revealed.has(item.id);
-  const sent = Boolean(insdAction.outcome);
+  const sent = Boolean(insdAction.outcome || item.lastSent);
   const reducedMotion = window.matchMedia
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -1699,11 +1702,16 @@ function revealDraft(item) {
   box.classList.add('is-revealing');
   skip?.removeAttribute('hidden');
 
-  const DURATION = 1200;      // brief on purpose: this is a flourish, not a wait
-  const started = performance.now();
+  const DELAY = 1000;
+  const DURATION = 2500;
+  let delayTimer = 0;
   let frame = 0;
+  let finished = false;
 
   const finish = () => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(delayTimer);
     cancelAnimationFrame(frame);
     box.value = full;
     box.classList.remove('is-revealing');
@@ -1711,21 +1719,26 @@ function revealDraft(item) {
     box.removeEventListener('input', finish);
     box.removeEventListener('focus', finish);
     skip?.removeEventListener('click', finish);
+    if (insdAction.finishReveal === finish) insdAction.finishReveal = null;
   };
+  insdAction.finishReveal = finish;
 
   // Any sign the reader wants the text now wins over the animation.
   box.addEventListener('input', finish);
   box.addEventListener('focus', finish);
   skip?.addEventListener('click', finish);
 
-  const step = (now) => {
-    const progress = Math.min((now - started) / DURATION, 1);
-    box.value = full.slice(0, Math.ceil(full.length * progress));
-    box.scrollTop = box.scrollHeight;
-    if (progress < 1) frame = requestAnimationFrame(step);
-    else finish();
-  };
-  frame = requestAnimationFrame(step);
+  delayTimer = setTimeout(() => {
+    const started = performance.now();
+    const step = (now) => {
+      const progress = Math.min((now - started) / DURATION, 1);
+      box.value = full.slice(0, Math.ceil(full.length * progress));
+      box.scrollTop = box.scrollHeight;
+      if (progress < 1) frame = requestAnimationFrame(step);
+      else finish();
+    };
+    frame = requestAnimationFrame(step);
+  }, DELAY);
 }
 
 function bindActionDetail() {
@@ -1809,6 +1822,9 @@ async function sendRequest() {
   if (!item || insdAction.sending) return;
   const to = [...insdAction.selected];
   if (!to.length) return;
+
+  // A click during the delay or typing reveal must send the complete draft.
+  insdAction.finishReveal?.();
 
   const btn = document.getElementById('insd-send');
   insdAction.sending = true;
