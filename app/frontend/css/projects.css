@@ -368,6 +368,21 @@
 
 .proj-modal-actions .proj-btn-primary { height: 34px; font-size: 12.5px; padding: 0 16px; }
 
+.proj-btn-danger {
+  height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #b42318;
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.proj-btn-danger:hover:not(:disabled) { background: #912018; }
+.proj-btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ═════════════════════════════════════════════════════════════
    SELECT PROJECT
    ═════════════════════════════════════════════════════════════ */
@@ -922,6 +937,10 @@
 .proj-pop-item svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--proj-text-3); }
 .proj-pop-item:hover { background: var(--proj-tint); color: var(--proj-purple); }
 .proj-pop-item:hover svg { color: var(--proj-purple); }
+.proj-pop-item.danger { color: #b42318; }
+.proj-pop-item.danger svg { color: #b42318; }
+.proj-pop-item.danger:hover:not(:disabled) { background: #fff1f0; color: #912018; }
+.proj-pop-item.danger:hover:not(:disabled) svg { color: #912018; }
 .proj-pop-item.on { color: var(--proj-purple); }
 .proj-pop-item[disabled] { opacity: 0.45; cursor: not-allowed; }
 .proj-pop-item[disabled]:hover { background: none; color: var(--proj-text-1); }

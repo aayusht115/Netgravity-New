@@ -183,6 +183,55 @@ class TestProjectIsolation:
             registry.get(record.project_id, user_id="user-2")
 
 
+class TestProjectDeletion:
+    def test_owner_can_delete_project(self, client):
+        from app.backend.services import persistence
+
+        token = _signup(client, "delete-owner@example.com")
+        created = client.post("/api/projects", json={"name": "Delete Me"},
+                              headers=_auth(token)).get_json()
+        project_id = created["id"]
+
+        deleted = client.delete(f"/api/projects/{project_id}", headers=_auth(token))
+        assert deleted.status_code == 200
+        assert deleted.get_json() == {"deleted": project_id, "snapshots_retained": True}
+        assert client.get(f"/api/projects/{project_id}", headers=_auth(token)).status_code == 404
+        assert all(p["id"] != project_id for p in
+                   client.get("/api/projects", headers=_auth(token)).get_json()["projects"])
+        assert all(p["project_id"] != project_id for p in persistence.load_projects())
+
+    def test_other_user_cannot_delete_project(self, client):
+        owner = _signup(client, "delete-private-owner@example.com")
+        stranger = _signup(client, "delete-private-stranger@example.com")
+        project_id = client.post("/api/projects", json={"name": "Private"},
+                                 headers=_auth(owner)).get_json()["id"]
+
+        denied = client.delete(f"/api/projects/{project_id}", headers=_auth(stranger))
+        assert denied.status_code == 403
+        assert client.get(f"/api/projects/{project_id}", headers=_auth(owner)).status_code == 200
+
+    def test_shared_demo_cannot_be_deleted(self, client):
+        token = _signup(client, "delete-demo@example.com")
+        denied = client.delete("/api/projects/pr-demo-case16", headers=_auth(token))
+        assert denied.status_code == 403
+        assert client.get("/api/projects/pr-demo-case16", headers=_auth(token)).status_code == 200
+
+    def test_failed_durable_delete_keeps_workspace(self, monkeypatch):
+        from app.backend.services import persistence
+
+        registry = ProjectRegistry()
+        monkeypatch.setattr(registry, "_persist", lambda _record: None)
+        record = registry.create(name="Keep Me", owner_id="owner")
+
+        def fail(_project_id):
+            raise OSError("storage unavailable")
+
+        monkeypatch.setattr(persistence, "delete_project", fail)
+        with pytest.raises(OSError):
+            registry.delete(record.project_id, user_id="owner")
+        assert registry.get(record.project_id, user_id="owner") is record
+
+
 # ---------------------------------------------------------------------------
 # No silent substitution of synthetic data
 # ---------------------------------------------------------------------------

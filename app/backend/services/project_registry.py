@@ -291,6 +291,24 @@ class ProjectRegistry:
         self._persist(record)
         return record
 
+    def delete(self, project_id: str, *, user_id: str) -> None:
+        """Remove an owned workspace, without deleting shared network snapshots."""
+        from app.backend.services import persistence
+
+        with self._lock:
+            record = self._projects.get(project_id)
+            if record is None:
+                raise NotFoundError(f"Project '{project_id}' not found.")
+            self._assert_access(record, user_id)
+            if record.is_demo:
+                raise ForbiddenError("The shared demo workspace cannot be deleted.")
+
+            # Do not claim success if the durable delete fails: otherwise the
+            # workspace disappears until the next server restart, then returns.
+            persistence.delete_project(project_id)
+            del self._projects[project_id]
+        logger.info("project.deleted project_id=%s owner=%s", project_id, user_id)
+
     # ------------------------------------------------------------------
     # Snapshot binding — the edge that was missing
     # ------------------------------------------------------------------

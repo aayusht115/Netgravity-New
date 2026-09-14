@@ -23,4 +23,8 @@ export const projectService = {
   async updateProject(projectId, updateData) {
     return apiClient.put(`/api/projects/${projectId}`, updateData);
   },
+
+  async deleteProject(projectId) {
+    return apiClient.delete(`/api/projects/${projectId}`);
+  },
 };

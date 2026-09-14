@@ -106,6 +106,14 @@ def update_project(project_id: str):
     return jsonify(record.to_dict()), 200
 
 
+@projects_bp.route("/<project_id>", methods=["DELETE"])
+@require_auth
+def delete_project(project_id: str):
+    """Remove an owned workspace. Shared or historical snapshots are retained."""
+    project_registry.delete(project_id, user_id=g.current_user.user_id)
+    return jsonify({"deleted": project_id, "snapshots_retained": True}), 200
+
+
 @projects_bp.route("/<project_id>/snapshot", methods=["GET"])
 @require_auth
 def get_project_snapshot(project_id: str):

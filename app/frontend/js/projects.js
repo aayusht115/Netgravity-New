@@ -15,7 +15,7 @@
 
 import { projectService } from './integration/services/project-service.js';
 import { mapProjectRecord } from './integration/mappers/project-mapper.js';
-import { setActiveProject } from './integration/project-context.js';
+import { getActiveProjectId, setActiveProject } from './integration/project-context.js';
 import { hydrateFromBackend } from './integration/hydrate.js';
 import { kpiService } from './integration/services/kpi-service.js';
 import {
@@ -159,6 +159,7 @@ const ICONS = {
   pencil: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>`,
   copy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
   open: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg>`,
 };
 
 /* Decorative flow-lines wash, bottom right of both screens. */
@@ -690,21 +691,22 @@ function openSortPop(anchor) {
 /**
  * The per-project menu.
  *
- * Every entry does something this build can actually do. There is no Delete
- * because there is no delete endpoint — `/api/projects/<id>` accepts GET, PUT
- * and PATCH only — and a Delete that silently fails is worse than none.
+ * Delete is deliberately separated from ordinary actions and requires the
+ * word "confirm" in a confirmation dialog before the API is called.
  */
 function openRowMenu(anchor, id) {
   const p = PROJECTS.find(x => x.id === id);
   if (!p) return;
-  const readOnly = p.owner === 'Sample';
+  const readOnly = p.isDemo;
 
   const pop = mountPop(anchor, 'proj-pop-menu', `
     <button type="button" class="proj-pop-item" data-act="open">${ICONS.open}<span>Open project</span></button>
     <button type="button" class="proj-pop-item" data-act="upload">${ICONS.upload}<span>Upload data</span></button>
     <button type="button" class="proj-pop-item" data-act="rename"${readOnly ? ' disabled title="The bundled sample workspace cannot be renamed."' : ''}>${ICONS.pencil}<span>Rename…</span></button>
     <div class="proj-pop-sep"></div>
-    <button type="button" class="proj-pop-item" data-act="copy">${ICONS.copy}<span>Copy project ID</span></button>`);
+    <button type="button" class="proj-pop-item" data-act="copy">${ICONS.copy}<span>Copy project ID</span></button>
+    <div class="proj-pop-sep"></div>
+    <button type="button" class="proj-pop-item danger" data-act="delete"${readOnly ? ' disabled title="The shared sample workspace cannot be deleted."' : ''}>${ICONS.trash}<span>Delete project</span></button>`);
 
   pop.addEventListener('click', (e) => {
     const item = e.target.closest('[data-act]');
@@ -719,6 +721,7 @@ function openRowMenu(anchor, id) {
       return;
     }
     if (act === 'rename') { openRenameDialog(p); return; }
+    if (act === 'delete') { openDeleteDialog(p); return; }
     if (act === 'copy') {
       const done = () => recordActivity(`Project ID copied: ${p.id}`);
       if (navigator.clipboard?.writeText) {
@@ -728,6 +731,61 @@ function openRowMenu(anchor, id) {
       } else {
         showInfoPanel('Project ID', `<p><code>${escapeHtml(p.id)}</code></p>`);
       }
+    }
+  });
+}
+
+/** Delete the workspace record only; snapshots may be shared or audited. */
+function openDeleteDialog(p) {
+  const close = showInfoPanel('Delete project', `
+    <p>Delete <strong>${escapeHtml(p.name)}</strong> from your workspace?</p>
+    <p>Project ID: <code>${escapeHtml(p.id)}</code></p>
+    <p>This cannot be undone in the app. Stored snapshots and audit records are
+      not purged by this action.</p>
+    <label class="proj-field-label" for="proj-delete-input">Type <strong>confirm</strong> to delete this project</label>
+    <input class="proj-input" id="proj-delete-input" type="text"
+           autocomplete="off" autocapitalize="off" spellcheck="false"
+           aria-describedby="proj-delete-error" />
+    <div class="proj-error" id="proj-delete-error" role="alert"></div>
+    <div class="proj-modal-actions">
+      <button type="button" class="proj-link-btn" id="proj-delete-cancel">Cancel</button>
+      <button type="button" class="proj-btn-danger" id="proj-delete-confirm" disabled>Delete project</button>
+    </div>`);
+
+  const input = document.getElementById('proj-delete-input');
+  const button = document.getElementById('proj-delete-confirm');
+  const error = document.getElementById('proj-delete-error');
+  let deleting = false;
+  const confirmed = () => input?.value.trim().toLowerCase() === 'confirm';
+  input?.focus();
+
+  input?.addEventListener('input', () => {
+    if (error) error.textContent = '';
+    if (button) button.disabled = deleting || !confirmed();
+  });
+  document.getElementById('proj-delete-cancel')?.addEventListener('click', close);
+  button?.addEventListener('click', async () => {
+    if (deleting || !confirmed()) return;
+    deleting = true;
+    button.disabled = true;
+    button.textContent = 'Deleting…';
+    try {
+      await projectService.deleteProject(p.id);
+      const idx = PROJECTS.findIndex(x => x.id === p.id);
+      if (idx >= 0) PROJECTS.splice(idx, 1);
+      if (currentProject?.id === p.id) currentProject = null;
+      if (getActiveProjectId() === p.id) {
+        setActiveProject(null);
+        clearNetworkModel();
+        selectCameFromApp = false;
+      }
+      close();
+      renderSelectProject();
+    } catch (e) {
+      if (error) error.textContent = e?.message || 'The project could not be deleted.';
+      deleting = false;
+      button.textContent = 'Delete project';
+      button.disabled = !confirmed();
     }
   });
 }
